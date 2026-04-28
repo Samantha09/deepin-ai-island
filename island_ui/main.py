@@ -97,8 +97,10 @@ def main():
     state_machine = IslandStateMachine(compact_timeout_ms=compact_timeout)
 
     if args.source == "claude":
+        print("[AI Island] 模式: Claude Code 真实事件 (Unix Socket)")
         source = ClaudeCodeEventSource()
     else:
+        print("[AI Island] 模式: Mock 模拟事件")
         source = MockEventSource(interval_ms=3000)
 
     window = IslandWindow(event_source=source, state_machine=state_machine)
