@@ -1,10 +1,10 @@
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer, QPoint, QRect, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication, QSizePolicy,
+    QWidget, QVBoxLayout, QApplication, QFrame,
 )
-from PySide6.QtGui import QKeySequence, QShortcut, QRegion, QPainterPath
+from PySide6.QtGui import QKeySequence, QShortcut, QPainter, QColor
 
 from island_ui.compact_pill import CompactPill
 from island_ui.expanded_panel import ExpandedPanel
@@ -15,7 +15,7 @@ from island_ui.events import Event
 
 
 class IslandWindow(QWidget):
-    """Floating island window: frameless, always-on-top, click-through when idle."""
+    """Floating island window: frameless, always-on-top, solid background."""
 
     def __init__(
         self,
@@ -37,39 +37,42 @@ class IslandWindow(QWidget):
         flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.WindowDoesNotAcceptFocus
+            | Qt.WindowType.Tool
         )
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        # Position at top-center of primary screen
         screen = QApplication.primaryScreen().availableGeometry()
-        self._window_width = 420
         self._max_panel_height = int(screen.height() * 0.6)
-        self.setFixedWidth(self._window_width)
-        x = screen.x() + (screen.width() - self._window_width) // 2
+        x = screen.x() + (screen.width() - 400) // 2
         self.move(x, screen.y() + 12)
 
     def _setup_ui(self) -> None:
         self.setStyleSheet("background-color: #151519;")
-        self._corner_radius = 20
 
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setContentsMargins(8, 8, 8, 8)
         self._layout.setSpacing(8)
-        self._layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
 
         self._pill = CompactPill()
         self._pill.setVisible(False)
-        self._layout.addWidget(self._pill)
+        self._layout.addWidget(self._pill, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self._panel = ExpandedPanel()
         self._panel.setVisible(False)
         self._panel.setFixedHeight(0)
         self._layout.addWidget(self._panel)
 
-        # Ensure window has a sane minimum height even when children are hidden
+        self.setFixedWidth(400)
         self.setMinimumHeight(48)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor("#151519"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(self.rect(), 16, 16)
+        painter.end()
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
@@ -77,23 +80,18 @@ class IslandWindow(QWidget):
         self._pill.clicked.connect(self._on_pill_clicked)
 
     def _setup_shortcuts(self) -> None:
-        # Ctrl+Shift+I: toggle expand/collapse
         toggle = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
         toggle.activated.connect(self._toggle_expand)
 
-        # Ctrl+Y: approve first pending permission
         approve = QShortcut(QKeySequence("Ctrl+Y"), self)
         approve.activated.connect(self._approve_first_permission)
 
-        # Ctrl+N: deny first pending permission
         deny = QShortcut(QKeySequence("Ctrl+N"), self)
         deny.activated.connect(self._deny_first_permission)
 
-        # Esc: collapse
         esc = QShortcut(QKeySequence("Esc"), self)
         esc.activated.connect(self._on_collapse)
 
-        # Ctrl+D: inject test event
         debug = QShortcut(QKeySequence("Ctrl+D"), self)
         debug.activated.connect(self._inject_test_event)
 
@@ -182,10 +180,9 @@ class IslandWindow(QWidget):
         self._pill.setVisible(True)
         self._panel.setVisible(True)
 
-        # Calculate target height based on content, capped at max
         content_height = self._panel.sizeHint().height()
         target = min(content_height, self._max_panel_height)
-        target = max(target, 120)  # Never smaller than 120 px
+        target = max(target, 120)
 
         self._animate_panel(target)
 
@@ -206,23 +203,9 @@ class IslandWindow(QWidget):
         anim.start()
 
     def _resize_to_content(self) -> None:
-        """Shrink-wrap window height to current visible children."""
         self._layout.invalidate()
         self._layout.activate()
         self.adjustSize()
-        self._set_rounded_mask()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        self._set_rounded_mask()
-
-    def _set_rounded_mask(self) -> None:
-        """Clip window to rounded rectangle so edges don't show desktop wallpaper."""
-        path = QPainterPath()
-        path.addRoundedRect(self.rect(), self._corner_radius, self._corner_radius)
-        polygon = path.toFillPolygon()
-        region = QRegion(polygon.toPolygon())
-        self.setMask(region)
 
     # ------------------------------------------------------------------
     # Shortcuts helpers
