@@ -23,29 +23,34 @@ python island_ui/main.py
 ## 目录结构
 
 ```
-island_ui/          # PySide6 桌面应用（第一阶段核心）
-  main.py           # 入口程序
-  island_window.py  # 主窗口：无边框、置顶、焦点策略、视图切换
-  compact_pill.py   # 顶部中央胶囊组件
-  expanded_panel.py # 展开面板：双视图（会话列表 / 事件详情）
-  state_machine.py  # IDLE/COMPACT/EXPANDED 三状态机
-  animations.py     # 动画工具
-  event_source.py   # EventSource ABC + MockEventSource
-  events.py         # 事件数据模型 + 序列化
-  card_factory.py   # 事件类型 → 卡片工厂
-  session.py        # Session 数据模型
-  cards/            # 事件卡片
+island_ui/              # PySide6 桌面应用（第一阶段核心）
+  main.py               # 入口程序，支持 --source mock|claude
+  island_window.py      # 主窗口：无边框、置顶、焦点策略、视图切换
+  compact_pill.py       # 顶部中央胶囊组件
+  expanded_panel.py     # 展开面板：双视图（会话列表 / 事件详情）
+  state_machine.py      # IDLE/COMPACT/EXPANDED 三状态机
+  animations.py         # 动画工具
+  event_source.py       # EventSource ABC + MockEventSource
+  claude_code_source.py # Phase 2: Unix Socket 服务器 + 事件解析
+  events.py             # 事件数据模型 + 序列化
+  card_factory.py       # 事件类型 → 卡片工厂
+  session.py            # Session 数据模型
+  cards/                # 事件卡片
     base_card.py         # EventCard 基类
     permission_card.py   # 权限请求（允许/拒绝）
     question_card.py     # 问题（选项/输入框）
     progress_card.py     # 进度（暂未使用）
     session_list_item.py # 会话列表条目
 
-island_daemon/      # 第二阶段：IPC 守护进程（预留空壳）
-adapters/           # 第二阶段：Agent 适配器（预留空壳）
+claude_hooks/           # Phase 2: Claude Code 官方 hook
+  install.py            # 安装/卸载 hook 到 ~/.claude/settings.json
+  ai_island_hook.py     # 单一 hook 脚本：stdin 接事件 → Unix Socket → UI
+
+island_daemon/          # 第三阶段：IPC 守护进程（预留空壳）
+adapters/               # 第三阶段：Agent 适配器（预留空壳）
 config/
-  default.yaml      # 配置：动画开关、超时时间、位置
-tests/              # 单元测试
+  default.yaml          # 配置：动画开关、超时时间、位置
+tests/                  # 单元测试
 ```
 
 ## 核心架构
@@ -147,6 +152,62 @@ ExpandedPanel 支持两种视图：
 2. **焦点策略**：当前未使用 `WindowDoesNotAcceptFocus`，输入框可以正常获取焦点。如需严格不抢焦点，需额外处理。
 3. **Wayland**：`setMask` 不支持，窗口圆角依赖 `QPalette` 和内部控件圆角。
 4. **字体**：main.py 中设置 `_setup_font`，优先尝试 Noto Sans CJK SC / WenQuanYi Micro Hei。
+
+## Phase 2：连接真实 Claude Code CLI
+
+### 架构（对标 macOS vibe-notch）
+
+```
+Claude Code settings.json（~/.claude/settings.json）
+  hooks.SessionStart       → ai_island_hook.py
+  hooks.PermissionRequest  → ai_island_hook.py  (timeout=86400，保持连接等响应)
+  hooks.PreToolUse         → ai_island_hook.py
+  hooks.PostToolUse        → ai_island_hook.py
+  hooks.Stop               → ai_island_hook.py
+
+ai_island_hook.py
+  stdin 读取 Claude Code 发来的 hook JSON
+  → Unix Socket (/tmp/ai-island.sock) 发送给 AI Island
+  → PermissionRequest 时阻塞等待 socket 回传决策
+  → stdout 输出 {"decision": "allow"} 或 {"decision": "deny"} 给 Claude Code
+
+AI Island UI
+  SocketServerThread (QThread)      # 监听 /tmp/ai-island.sock
+  ClaudeCodeEventSource             # 解析 hook JSON → Event 对象
+  → PermissionCard 点击 Allow/Deny → respond_to_permission() → 写回 socket
+```
+
+### 安装 hook
+
+```bash
+python claude_hooks/install.py
+# 然后重启 Claude Code
+```
+
+卸载：
+```bash
+python claude_hooks/install.py --uninstall
+```
+
+### 运行方式
+
+```bash
+# 使用模拟事件（开发测试）
+python island_ui/main.py
+
+# 使用真实 Claude Code 事件（需先安装 hook）
+python island_ui/main.py --source claude
+```
+
+### 双向控制原理
+
+当 Claude Code 触发 `PermissionRequest` hook 时：
+1. hook 脚本通过 Unix Socket 把事件发给 AI Island
+2. hook **保持 stdout 打开**，Claude Code 等待 hook 退出
+3. AI Island 的 SocketServerThread **保持该 socket 连接**
+4. UI 弹出 PermissionCard，用户点击 Allow / Deny
+5. `ClaudeCodeEventSource.respond_to_permission()` 通过 socket 写回 `{"decision": "allow"}`
+6. hook 脚本收到响应，输出给 Claude Code，Claude Code 继续执行
 
 ## 扩展指南
 

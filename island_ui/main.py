@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 
 from island_ui.event_source import MockEventSource
+from island_ui.claude_code_source import ClaudeCodeEventSource
 from island_ui.state_machine import IslandStateMachine
 from island_ui.island_window import IslandWindow
 
@@ -39,6 +40,12 @@ def _setup_font(app: QApplication) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Deepin AI Island")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument(
+        "--source",
+        choices=["mock", "claude"],
+        default="mock",
+        help="Event source: mock (default) or claude"
+    )
     args = parser.parse_args()
 
     config = load_config()
@@ -52,7 +59,10 @@ def main():
     compact_timeout = island_cfg.get("compact_timeout_ms", 5000)
     state_machine = IslandStateMachine(compact_timeout_ms=compact_timeout)
 
-    source = MockEventSource(interval_ms=3000)
+    if args.source == "claude":
+        source = ClaudeCodeEventSource()
+    else:
+        source = MockEventSource(interval_ms=3000)
 
     window = IslandWindow(event_source=source, state_machine=state_machine)
     window.start()

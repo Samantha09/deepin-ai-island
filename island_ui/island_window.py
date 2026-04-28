@@ -139,6 +139,10 @@ class IslandWindow(QWidget):
         card = CardFactory.create_card(event, self._panel)
         if card:
             card.resolved.connect(self._on_card_resolved)
+            # PermissionCard 有 responded 信号，需要额外连接以支持 socket 回传
+            from island_ui.cards.permission_card import PermissionCard
+            if isinstance(card, PermissionCard):
+                card.responded.connect(self._on_permission_responded)
             self._panel.add_event_card(card)
 
         self._update_pill()
@@ -157,6 +161,18 @@ class IslandWindow(QWidget):
         self._update_pill()
         if self._panel.unresolved_count() == 0:
             self._state_machine.on_all_resolved()
+
+    def _on_permission_responded(self, response) -> None:
+        """当用户在 UI 上点击 Allow/Deny 时，尝试通过 socket 回传给 Claude Code。"""
+        sender = self.sender()
+        if sender is None:
+            return
+        tool_use_id = getattr(sender, "tool_use_id", lambda: "")()
+        if not tool_use_id:
+            return
+        decision = "allow" if getattr(response, "approved", False) else "deny"
+        if hasattr(self._event_source, "respond_to_permission"):
+            self._event_source.respond_to_permission(tool_use_id, decision)
 
     # ------------------------------------------------------------------
     # Session selection → detail view

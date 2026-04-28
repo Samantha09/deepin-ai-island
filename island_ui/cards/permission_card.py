@@ -13,6 +13,9 @@ class PermissionCard(EventCard):
         action = event.payload.get("action", "Unknown action")
         self.set_content("Permission Request", f"Allow {action}?")
 
+        # 提取 tool_use_id，用于 socket 回传决策
+        self._tool_use_id = event.payload.get("tool_use_id", "")
+
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
@@ -51,6 +54,9 @@ class PermissionCard(EventCard):
         btn_layout.addWidget(self._allow_btn)
 
         self._layout.addLayout(btn_layout)
+
+    def tool_use_id(self) -> str:
+        return self._tool_use_id
 
     def _on_deny(self) -> None:
         response = PermissionResolved(approved=False, session_id=self._event.session_id)
