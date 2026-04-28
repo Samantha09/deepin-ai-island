@@ -80,8 +80,8 @@ def main():
     parser.add_argument(
         "--source",
         choices=["mock", "claude"],
-        default="mock",
-        help="Event source: mock (default) or claude"
+        default="claude",
+        help="Event source: claude (default) or mock"
     )
     args = parser.parse_args()
 

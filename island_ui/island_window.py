@@ -282,6 +282,10 @@ class IslandWindow(QWidget):
             self._resize_to_content()
             return
 
+        # 先解除 minimumHeight 约束，否则 maximumHeight 无法低于它
+        self._panel.setMinimumHeight(0)
+        self._panel.setMaximumHeight(self._panel.height())
+
         anim = QPropertyAnimation(self._panel, b"maximumHeight", self)
         anim.setDuration(180)
         anim.setStartValue(self._panel.height())
@@ -290,6 +294,8 @@ class IslandWindow(QWidget):
 
         def _on_anim_finished():
             self._panel.setFixedHeight(target_height)
+            if target_height > 0:
+                self._panel.setMinimumHeight(target_height)
             self._resize_to_content()
             if on_finished:
                 on_finished()
