@@ -43,26 +43,11 @@ class SessionListItem(QFrame):
         self._name_label.setStyleSheet("font-size: 14px; color: #eeeeee; font-weight: 500;")
         self._middle_layout.addWidget(self._name_label)
 
-        last = self._session.last_event()
-        desc = ""
-        if last:
-            if last.type == "permission.requested":
-                desc = f"Permission: {last.payload.get('action', '')}"
-            elif last.type == "question.asked":
-                desc = f"Question: {last.payload.get('question', '')}"
-            elif last.type == "session.started":
-                desc = f"Started {self._session.duration_text()} ago"
-            elif last.type == "session.ended":
-                desc = "Completed"
-            else:
-                desc = last.type
-        else:
-            desc = f"Started {self._session.duration_text()} ago"
-
-        self._desc_label = QLabel(desc)
+        self._desc_label = QLabel("")
         self._desc_label.setStyleSheet("font-size: 11px; color: #888888;")
         self._desc_label.setWordWrap(True)
         self._middle_layout.addWidget(self._desc_label)
+        self._refresh_desc()
 
         self._layout.addWidget(self._middle, stretch=1)
 
@@ -122,27 +107,25 @@ class SessionListItem(QFrame):
             </span>
         """
 
-    def update_status(self) -> None:
-        """Refresh dot color, status tag and description from current session state."""
-        color = self._STATUS_COLORS.get(self._session.status, "#888888")
-        self._dot.setStyleSheet(f"color: {color}; font-size: 10px;")
-        self._tags_label.setText(self._build_tags())
-
+    def _refresh_desc(self) -> None:
+        """仅显示 permission/question 具体内容，不显示纯状态文字。"""
         last = self._session.last_event()
+        desc = ""
         if last:
             if last.type == "permission.requested":
-                desc = f"Permission: {last.payload.get('action', '')}"
+                desc = last.payload.get("action", "")
             elif last.type == "question.asked":
-                desc = f"Question: {last.payload.get('question', '')}"
-            elif last.type == "session.ended":
-                desc = "Completed"
+                desc = last.payload.get("question", "")
             elif last.type == "progress.updated":
                 msg = last.payload.get("message", "")
                 if msg.startswith("等待批准"):
-                    desc = msg
-                else:
-                    # 普通运行状态不更新描述，避免跳动
-                    return
-            else:
-                return
-            self._desc_label.setText(desc)
+                    desc = msg[6:].strip() if msg.startswith("等待批准:") else msg
+        self._desc_label.setText(desc)
+        self._desc_label.setVisible(bool(desc))
+
+    def update_status(self) -> None:
+        """Refresh dot color and tags from current session state."""
+        color = self._STATUS_COLORS.get(self._session.status, "#888888")
+        self._dot.setStyleSheet(f"color: {color}; font-size: 10px;")
+        self._tags_label.setText(self._build_tags())
+        self._refresh_desc()
