@@ -218,8 +218,10 @@ class IslandWindow(QWidget):
         if not session:
             return
         self._panel.show_event_detail(session_id, session.name)
+        # 只显示最近 10 条事件，避免 detail view 过长
+        recent_events = session.events[-10:]
         # Add session events as cards，跳过已 resolved 的 permission
-        for event in session.events:
+        for event in recent_events:
             card = CardFactory.create_card(event, self._panel)
             if not card:
                 continue
