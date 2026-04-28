@@ -27,6 +27,7 @@ class ExpandedPanel(QWidget):
 
         # ── Session List View ──
         self._session_list_widget = QWidget()
+        self._session_list_widget.setStyleSheet("background-color: #1e1e23;")
         self._session_list_layout = QVBoxLayout(self._session_list_widget)
         self._session_list_layout.setContentsMargins(12, 12, 12, 12)
         self._session_list_layout.setSpacing(8)
@@ -38,9 +39,11 @@ class ExpandedPanel(QWidget):
         self._session_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._session_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._session_scroll.setWidget(self._session_list_widget)
+        self._session_scroll.viewport().setStyleSheet("background-color: #1e1e23;")
 
         # ── Event Detail View ──
         self._detail_widget = QWidget()
+        self._detail_widget.setStyleSheet("background-color: #1e1e23;")
         self._detail_layout = QVBoxLayout(self._detail_widget)
         self._detail_layout.setContentsMargins(12, 12, 12, 12)
         self._detail_layout.setSpacing(10)
@@ -68,6 +71,7 @@ class ExpandedPanel(QWidget):
         self._detail_layout.addWidget(self._detail_title)
 
         self._cards_container = QWidget()
+        self._cards_container.setStyleSheet("background-color: #1e1e23;")
         self._cards_layout = QVBoxLayout(self._cards_container)
         self._cards_layout.setContentsMargins(0, 0, 0, 0)
         self._cards_layout.setSpacing(10)
@@ -80,6 +84,7 @@ class ExpandedPanel(QWidget):
         self._detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._detail_scroll.setWidget(self._detail_widget)
+        self._detail_scroll.viewport().setStyleSheet("background-color: #1e1e23;")
 
         # Add both to main layout, only one visible at a time
         self._layout.addWidget(self._session_scroll)
