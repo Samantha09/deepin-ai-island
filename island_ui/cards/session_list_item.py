@@ -15,12 +15,6 @@ class SessionListItem(QFrame):
         "completed": "#4CAF50",
         "idle": "#888888",
     }
-    _STATUS_LABELS = {
-        "running": "Running",
-        "needs_attention": "Waiting",
-        "completed": "Completed",
-        "idle": "Idle",
-    }
 
     def __init__(self, session: Session, parent: QWidget = None):
         super().__init__(parent)
@@ -108,17 +102,7 @@ class SessionListItem(QFrame):
         return self._session
 
     def _build_tags(self) -> str:
-        status_color = self._STATUS_COLORS.get(self._session.status, "#888888")
-        status_text = self._STATUS_LABELS.get(self._session.status, self._session.status)
         return f"""
-            <span style="background-color: {status_color}22;
-                         color: {status_color};
-                         border-radius: 4px;
-                         padding: 2px 6px;
-                         font-size: 11px;
-                         font-weight: 500;">
-                {status_text}
-            </span>
             <span style="background-color: rgba(255,255,255,0.08);
                          color: #aaaaaa;
                          border-radius: 4px;
