@@ -1,0 +1,7 @@
+island:
+  position: top-center
+  animation_enabled: true
+  compact_timeout_ms: 5000
+  expanded_max_height_ratio: 0.6
+debug:
+  mock_events_enabled: true
