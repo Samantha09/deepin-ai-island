@@ -123,10 +123,11 @@ class IslandWindow(QWidget):
             return
 
         if isinstance(event, SessionEnded):
-            session = self._sessions.get(event.session_id)
+            session = self._sessions.pop(event.session_id, None)
             if session:
-                session.status = "completed"
-                self._panel.update_session_item(session)
+                self._panel.remove_session_item(event.session_id)
+            if not self._sessions:
+                self._agents.clear()
             self._update_pill()
             return
 
@@ -142,7 +143,9 @@ class IslandWindow(QWidget):
             # PermissionCard 有 responded 信号，需要额外连接以支持 socket 回传
             from island_ui.cards.permission_card import PermissionCard
             if isinstance(card, PermissionCard):
-                card.responded.connect(self._on_permission_responded)
+                card.responded.connect(
+                    lambda resp, tid=card.tool_use_id(): self._on_permission_responded(tid, resp)
+                )
             self._panel.add_event_card(card)
 
         self._update_pill()
@@ -159,12 +162,8 @@ class IslandWindow(QWidget):
         # 真实模式下不要自动触发 on_all_resolved 清空会话
         # 会话由轮询机制管理，只有 session 文件消失时才结束
 
-    def _on_permission_responded(self, response) -> None:
-        """当用户在 UI 上点击 Allow/Deny 时，尝试通过 socket 回传给 Claude Code。"""
-        sender = self.sender()
-        if sender is None:
-            return
-        tool_use_id = getattr(sender, "tool_use_id", lambda: "")()
+    def _on_permission_responded(self, tool_use_id: str, response) -> None:
+        """当用户在 UI 上点击 Allow/Deny 时，通过 socket 回传给 Claude Code。"""
         if not tool_use_id:
             return
         decision = "allow" if getattr(response, "approved", False) else "deny"
@@ -185,6 +184,11 @@ class IslandWindow(QWidget):
             card = CardFactory.create_card(event, self._panel)
             if card:
                 card.resolved.connect(self._on_card_resolved)
+                from island_ui.cards.permission_card import PermissionCard
+                if isinstance(card, PermissionCard):
+                    card.responded.connect(
+                        lambda resp, tid=card.tool_use_id(): self._on_permission_responded(tid, resp)
+                    )
                 self._panel.add_event_card(card)
 
     # ------------------------------------------------------------------

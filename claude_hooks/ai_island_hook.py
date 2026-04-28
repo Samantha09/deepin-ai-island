@@ -31,7 +31,9 @@ def send_event_and_wait(data: dict) -> dict:
         return {}
 
     # 只有 PermissionRequest 需要等待响应
-    if data.get("event") == "PermissionRequest":
+    # Claude Code 使用 hook_event_name 而不是 event 字段
+    event_name = data.get("event") or data.get("hook_event_name", "")
+    if event_name == "PermissionRequest":
         sock.settimeout(PERMISSION_TIMEOUT)
         try:
             chunks = []
@@ -70,10 +72,34 @@ def main():
     # 补充事件类型标记（Claude Code hook stdin 里自带 event 字段）
     response = send_event_and_wait(event_data)
 
-    # 如果有响应，输出给 Claude Code
+    # 如果有响应，包装成 Claude Code 需要的格式后输出
     if response:
-        print(json.dumps(response), file=sys.stdout)
+        # Claude Code PermissionRequest hook 需要特定的响应格式
+        # 参考: https://smartscope.blog/en/generative-ai/claude/claude-code-hooks-guide/
+        # AI Island 返回 {"decision": "allow"} 或 {"decision": "deny", "reason": "..."}
+        decision = response.get("decision", "")
+        if not decision:
+            # 兼容旧格式 {"approved": true}
+            decision = "allow" if response.get("approved") else "deny"
+
+        wrapped = {
+            "hookSpecificOutput": {
+                "hookEventName": "PermissionRequest",
+                "decision": {
+                    "behavior": decision
+                }
+            }
+        }
+        if decision == "deny":
+            reason = response.get("reason", "")
+            if reason:
+                wrapped["hookSpecificOutput"]["decision"]["message"] = reason
+            else:
+                wrapped["hookSpecificOutput"]["decision"]["message"] = "Denied by user via AI Island"
+        print(json.dumps(wrapped), file=sys.stdout)
         sys.stdout.flush()
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

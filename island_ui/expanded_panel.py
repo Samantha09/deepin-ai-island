@@ -39,6 +39,7 @@ class ExpandedPanel(QWidget):
         self._session_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._session_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._session_scroll.setWidget(self._session_list_widget)
+        self._session_scroll.setMinimumHeight(200)
         self._session_scroll.viewport().setStyleSheet("background-color: #1e1e23;")
 
         # ── Event Detail View ──
@@ -84,6 +85,7 @@ class ExpandedPanel(QWidget):
         self._detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._detail_scroll.setWidget(self._detail_widget)
+        self._detail_scroll.setMinimumHeight(200)
         self._detail_scroll.viewport().setStyleSheet("background-color: #1e1e23;")
 
         # Add both to main layout, only one visible at a time
@@ -178,6 +180,11 @@ class ExpandedPanel(QWidget):
             if widget:
                 widget.deleteLater()
         self._cards.clear()
+
+    def remove_session_item(self, session_id: str) -> None:
+        item = self._session_items.pop(session_id, None)
+        if item:
+            item.deleteLater()
 
     def clear_sessions(self) -> None:
         for item in self._session_items.values():

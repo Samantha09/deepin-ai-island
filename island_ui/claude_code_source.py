@@ -34,6 +34,9 @@ class SocketServerThread(QThread):
         self._server_sock: Optional[socket.socket] = None
         self._lock = threading.Lock()
         self._pending: dict[str, tuple[socket.socket, threading.Event, float]] = {}
+        # PreToolUse -> PermissionRequest tool_use_id 缓存
+        self._tool_use_id_cache: dict[str, list[str]] = {}
+        self._cache_lock = threading.Lock()
 
     def run(self) -> None:
         try:
@@ -101,6 +104,41 @@ class SocketServerThread(QThread):
                 self._pending.pop(tool_use_id, None)
         return True
 
+    # ------------------------------------------------------------------
+    # Tool Use ID Cache (PreToolUse -> PermissionRequest correlation)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _cache_key(session_id: str, tool_name: str, tool_input: dict) -> str:
+        input_str = json.dumps(tool_input, sort_keys=True, ensure_ascii=False)
+        return f"{session_id}:{tool_name}:{input_str}"
+
+    def _cache_tool_use_id(self, session_id: str, tool_name: str, tool_input: dict, tool_use_id: str) -> None:
+        key = self._cache_key(session_id, tool_name, tool_input)
+        with self._cache_lock:
+            if key not in self._tool_use_id_cache:
+                self._tool_use_id_cache[key] = []
+            self._tool_use_id_cache[key].append(tool_use_id)
+
+    def _pop_cached_tool_use_id(self, session_id: str, tool_name: str, tool_input: dict) -> Optional[str]:
+        key = self._cache_key(session_id, tool_name, tool_input)
+        with self._cache_lock:
+            queue = self._tool_use_id_cache.get(key)
+            if not queue:
+                return None
+            tool_use_id = queue.pop(0)
+            if not queue:
+                del self._tool_use_id_cache[key]
+            else:
+                self._tool_use_id_cache[key] = queue
+            return tool_use_id
+
+    def _cleanup_cache(self, session_id: str) -> None:
+        with self._cache_lock:
+            keys_to_remove = [k for k in self._tool_use_id_cache if k.startswith(f"{session_id}:")]
+            for k in keys_to_remove:
+                del self._tool_use_id_cache[k]
+
     def _handle_client(self, client: socket.socket) -> None:
         try:
             client.settimeout(5.0)
@@ -123,28 +161,58 @@ class SocketServerThread(QThread):
             return
 
         event_name = data.get("event", "")
+        if not event_name:
+            event_name = data.get("hook_event_name", "")
+        session_id = data.get("session_id", data.get("sessionId", ""))
         tool_use_id = data.get("tool_use_id", data.get("toolUseId", ""))
+        tool_name = data.get("tool_name", data.get("tool", ""))
+        tool_input = data.get("tool_input", data.get("toolInput", {}))
 
-        if event_name == "PermissionRequest" and tool_use_id:
-            event_obj = threading.Event()
-            with self._lock:
-                self._pending[tool_use_id] = (client, event_obj, time.time())
+        # Cache tool_use_id from PreToolUse for PermissionRequest correlation
+        if event_name == "PreToolUse" and tool_use_id:
+            self._cache_tool_use_id(session_id, tool_name, tool_input, tool_use_id)
+            client.close()
             self.event_received.emit(data)
-            event_obj.wait(timeout=86400)
-            with self._lock:
-                if tool_use_id in self._pending:
-                    try:
-                        client.sendall(json.dumps({"decision": "deny", "reason": "timeout"}).encode("utf-8"))
-                        client.close()
-                    except OSError:
-                        pass
-                    self._pending.pop(tool_use_id, None)
-        else:
-            try:
+            return
+
+        if event_name == "SessionEnd":
+            self._cleanup_cache(session_id)
+
+        if event_name == "PermissionRequest":
+            # PermissionRequest often does NOT include tool_use_id, retrieve from cache
+            resolved_tool_use_id = tool_use_id
+            if not resolved_tool_use_id:
+                resolved_tool_use_id = self._pop_cached_tool_use_id(session_id, tool_name, tool_input)
+
+            if resolved_tool_use_id:
+                # Inject resolved tool_use_id back into data so parser can use it
+                data["tool_use_id"] = resolved_tool_use_id
+                event_obj = threading.Event()
+                with self._lock:
+                    self._pending[resolved_tool_use_id] = (client, event_obj, time.time())
+                self.event_received.emit(data)
+                event_obj.wait(timeout=86400)
+                with self._lock:
+                    if resolved_tool_use_id in self._pending:
+                        try:
+                            client.sendall(json.dumps({"decision": "deny", "reason": "timeout"}).encode("utf-8"))
+                            client.close()
+                        except OSError:
+                            pass
+                        self._pending.pop(resolved_tool_use_id, None)
+                return
+            else:
+                # No tool_use_id available, cannot respond; close socket and emit as regular event
                 client.close()
-            except OSError:
-                pass
-            self.event_received.emit(data)
+                self.event_received.emit(data)
+                return
+
+        # Non-permission events: close socket immediately
+        try:
+            client.close()
+        except OSError:
+            pass
+        self.event_received.emit(data)
 
 
 class ClaudeCodeEventSource(EventSource):
@@ -249,14 +317,15 @@ class ClaudeCodeEventSource(EventSource):
 
     def _handle_status_change(self, session_id: str, status: str, waiting_for: str, cwd: str) -> None:
         if status == "waiting" and waiting_for:
-            # 解析 waitingFor，例如 "approve Bash"、"approve Write"
+            # 轮poll检测到的 waiting 状态不生成 PermissionRequested（没有 tool_use_id，Allow 点不了）
+            # 真正的 PermissionCard 只由 PermissionRequest hook 生成（带 tool_use_id）
             action = waiting_for
             if waiting_for.startswith("approve "):
-                action = waiting_for[8:]  # 去掉 "approve "
-            event = PermissionRequested(
+                action = waiting_for[8:]
+            event = ProgressUpdated(
                 session_id=session_id,
-                action=action,
-                payload={"waitingFor": waiting_for, "cwd": cwd},
+                message=f"等待批准: {action}",
+                payload={"status": "waiting", "waitingFor": waiting_for, "cwd": cwd},
             )
             self.event_received.emit(event)
         elif status in ("busy", "running_tool", "processing"):
@@ -285,13 +354,20 @@ class ClaudeCodeEventSource(EventSource):
 
     def _parse_socket_event(self, data: dict) -> Optional[Event]:
         event_name = data.get("event", "")
+        if not event_name:
+            event_name = data.get("hook_event_name", "")
         session_id = data.get("session_id", data.get("sessionId", ""))
         payload = data.get("payload", {})
         timestamp = data.get("timestamp", time.time())
 
-        for key in ("tool", "tool_input", "tool_use_id", "message", "status", "cwd", "pid", "tty"):
+        for key in ("tool", "tool_input", "message", "status", "cwd", "pid", "tty"):
             if key in data:
                 payload[key] = data[key]
+        # Claude Code 使用驼峰命名 toolUseId，统一为下划线形式
+        if "toolUseId" in data:
+            payload["tool_use_id"] = data["toolUseId"]
+        elif "tool_use_id" in data:
+            payload["tool_use_id"] = data["tool_use_id"]
 
         if event_name == "SessionStart":
             task = payload.get("prompt", payload.get("task", "Claude Code 会话"))
@@ -325,15 +401,8 @@ class ClaudeCodeEventSource(EventSource):
             )
 
         if event_name == "PreToolUse":
-            tool = payload.get("tool", "Unknown")
-            tool_input = payload.get("tool_input", {})
-            action = self._format_action(tool, tool_input)
-            return PermissionRequested(
-                session_id=session_id,
-                action=action,
-                payload=payload,
-                timestamp=timestamp,
-            )
+            # PreToolUse is only used for caching tool_use_id, do not create a card
+            return None
 
         if event_name == "PostToolUse":
             tool = payload.get("tool", "Unknown")
