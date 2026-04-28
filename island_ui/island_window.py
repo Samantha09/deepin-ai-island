@@ -165,7 +165,7 @@ class IslandWindow(QWidget):
 
     def _update_pill(self) -> None:
         total = len(self._sessions)
-        active = sum(1 for s in self._sessions.values() if s.status != "completed")
+        active = sum(1 for s in self._sessions.values() if s.status not in ("completed", "idle"))
         waiting = sum(1 for s in self._sessions.values() if s.status == "needs_attention")
 
         # 第一个 waiting 会话的 action / 名称，用于 pill 直接展示

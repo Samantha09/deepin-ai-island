@@ -13,11 +13,13 @@ class SessionListItem(QFrame):
         "running": "#2196F3",
         "needs_attention": "#FF9800",
         "completed": "#4CAF50",
+        "idle": "#888888",
     }
     _STATUS_LABELS = {
         "running": "Running",
         "needs_attention": "Waiting",
         "completed": "Completed",
+        "idle": "Idle",
     }
 
     def __init__(self, session: Session, parent: QWidget = None):

@@ -12,7 +12,7 @@ class Session:
     agent: str
     terminal: str
     start_time: float = field(default_factory=lambda: datetime.now().timestamp())
-    status: str = "running"  # running, completed, needs_attention
+    status: str = "running"  # running, idle, completed, needs_attention
     events: list[Event] = field(default_factory=list)
     resolved_tool_use_ids: set[str] = field(default_factory=set)
 
@@ -37,6 +37,8 @@ class Session:
             # 轮poll检测到的 waiting 状态通过 ProgressUpdated 传递
             if msg.startswith("等待批准"):
                 self.status = "needs_attention"
+            elif msg == "idle":
+                self.status = "idle"
             # 进度更新时，如果之前是 needs_attention，恢复为 running
             elif self.status == "needs_attention":
                 self.status = "running"
