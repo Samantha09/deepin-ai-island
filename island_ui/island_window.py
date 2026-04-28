@@ -148,17 +148,16 @@ class IslandWindow(QWidget):
         self._update_pill()
 
     def _update_pill(self) -> None:
-        # 统计需要注意的会话数（waiting / 有未处理权限请求）
-        needs_attention = sum(
-            1 for s in self._sessions.values() if s.status == "needs_attention"
-        )
-        self._pill.set_count(needs_attention)
+        # 统计活跃会话总数（非 completed 的），让用户一眼看到有几个 Claude 在跑
+        active = sum(1 for s in self._sessions.values() if s.status != "completed")
+        waiting = sum(1 for s in self._sessions.values() if s.status == "needs_attention")
+        self._pill.set_count(waiting, active)
         self._pill.set_agents(list(self._agents))
 
     def _on_card_resolved(self, card) -> None:
         self._update_pill()
-        if self._panel.unresolved_count() == 0:
-            self._state_machine.on_all_resolved()
+        # 真实模式下不要自动触发 on_all_resolved 清空会话
+        # 会话由轮询机制管理，只有 session 文件消失时才结束
 
     def _on_permission_responded(self, response) -> None:
         """当用户在 UI 上点击 Allow/Deny 时，尝试通过 socket 回传给 Claude Code。"""
@@ -235,6 +234,10 @@ class IslandWindow(QWidget):
             self._set_expanded_ui()
 
     def _set_idle_ui(self) -> None:
+        # 真实模式下有活跃会话时不进入 IDLE，保持显示
+        if self._sessions:
+            self._set_compact_ui()
+            return
         self._pill.setVisible(False)
         self._panel.setVisible(False)
         self._panel.setFixedHeight(0)

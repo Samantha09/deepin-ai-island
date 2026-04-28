@@ -39,11 +39,16 @@ class CompactPill(QFrame):
         self.setMaximumWidth(400)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def set_count(self, count: int) -> None:
+    def set_count(self, count: int, active: int = 0) -> None:
         self._count = count
-        text = f"{count} request" if count == 1 else f"{count} requests"
+        if count > 0:
+            text = f"{count} waiting"
+        elif active > 0:
+            text = f"{active} active"
+        else:
+            text = "AI Island"
         self._count_label.setText(text)
-        self.setVisible(count > 0)
+        # 真实模式下始终显示 pill，让用户知道 AI Island 在运行
 
     def set_agents(self, agents: list[str]) -> None:
         self._agents = agents
