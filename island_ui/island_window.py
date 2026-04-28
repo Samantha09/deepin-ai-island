@@ -2,7 +2,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, QPoint, QRect, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QApplication,
+    QWidget, QVBoxLayout, QApplication, QSizePolicy,
 )
 from PySide6.QtGui import QKeySequence, QShortcut
 
@@ -12,7 +12,11 @@ from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.card_factory import CardFactory
 from island_ui.event_source import EventSource
 from island_ui.events import Event
-class IslandWindow(QMainWindow):
+
+
+class IslandWindow(QWidget):
+    """Floating island window: frameless, always-on-top, click-through when idle."""
+
     def __init__(
         self,
         event_source: EventSource,
@@ -33,28 +37,24 @@ class IslandWindow(QMainWindow):
         flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.ToolTip
+            | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
-        # Prevent stealing focus on show, but allow child widgets to receive focus
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         # Position at top-center of primary screen
-        screen = QApplication.primaryScreen().geometry()
-        width = 420
-        self.setFixedWidth(width)
-        x = (screen.width() - width) // 2
-        self.move(x, 12)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self._window_width = 420
+        self._max_panel_height = int(screen.height() * 0.6)
+        self.setFixedWidth(self._window_width)
+        x = screen.x() + (screen.width() - self._window_width) // 2
+        self.move(x, screen.y() + 12)
 
     def _setup_ui(self) -> None:
-        self._central = QWidget()
-        self._central.setStyleSheet("background: transparent;")
-        self.setCentralWidget(self._central)
+        self.setStyleSheet("background: transparent;")
 
-        self._layout = QVBoxLayout(self._central)
+        self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(8)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
@@ -65,7 +65,11 @@ class IslandWindow(QMainWindow):
 
         self._panel = ExpandedPanel()
         self._panel.setVisible(False)
+        self._panel.setFixedHeight(0)
         self._layout.addWidget(self._panel)
+
+        # Ensure window has a sane minimum height even when children are hidden
+        self.setMinimumHeight(48)
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
@@ -93,10 +97,13 @@ class IslandWindow(QMainWindow):
         debug = QShortcut(QKeySequence("Ctrl+D"), self)
         debug.activated.connect(self._inject_test_event)
 
+    # ------------------------------------------------------------------
+    # Event handling
+    # ------------------------------------------------------------------
+
     def _on_event(self, event: Event) -> None:
         self._state_machine.on_event_arrived()
 
-        # Update agents tracking
         agent = event.payload.get("agent")
         if agent:
             self._agents.add(agent)
@@ -118,6 +125,10 @@ class IslandWindow(QMainWindow):
         if self._panel.unresolved_count() == 0:
             self._state_machine.on_all_resolved()
 
+    # ------------------------------------------------------------------
+    # User interactions
+    # ------------------------------------------------------------------
+
     def _on_pill_clicked(self) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
             self._state_machine.on_collapse_requested()
@@ -130,39 +141,80 @@ class IslandWindow(QMainWindow):
         else:
             self._state_machine.on_expand_requested()
 
+    def _on_collapse(self) -> None:
+        self._state_machine.on_collapse_requested()
+
     def enterEvent(self, event) -> None:
         if self._state_machine.state() == IslandState.COMPACT:
             self._state_machine.on_expand_requested()
         super().enterEvent(event)
 
-    def _on_collapse(self) -> None:
-        self._state_machine.on_collapse_requested()
+    def leaveEvent(self, event) -> None:
+        if self._state_machine.state() == IslandState.EXPANDED:
+            self._state_machine.on_collapse_requested()
+        super().leaveEvent(event)
+
+    # ------------------------------------------------------------------
+    # State changes → UI updates
+    # ------------------------------------------------------------------
 
     def _on_state_changed(self, state: IslandState) -> None:
         if state == IslandState.IDLE:
-            self._pill.setVisible(False)
-            self._panel.setVisible(False)
-            self._panel.setMaximumHeight(0)
-            self._panel.clear_cards()
-            self._agents.clear()
+            self._set_idle_ui()
         elif state == IslandState.COMPACT:
-            self._pill.setVisible(True)
-            self._animate_panel_height(0, lambda: self._panel.setVisible(False))
+            self._set_compact_ui()
         elif state == IslandState.EXPANDED:
-            self._pill.setVisible(True)
-            self._panel.setVisible(True)
-            target = int(QApplication.primaryScreen().geometry().height() * 0.6)
-            self._panel.setMaximumHeight(target)
+            self._set_expanded_ui()
 
-    def _animate_panel_height(self, target_height: int, on_finished=None) -> None:
-        anim = QPropertyAnimation(self._panel, b"maximumHeight", self)
+    def _set_idle_ui(self) -> None:
+        self._pill.setVisible(False)
+        self._panel.setVisible(False)
+        self._panel.setFixedHeight(0)
+        self._panel.clear_cards()
+        self._agents.clear()
+        self._resize_to_content()
+
+    def _set_compact_ui(self) -> None:
+        self._pill.setVisible(True)
+        self._animate_panel(0, on_finished=lambda: self._panel.setVisible(False))
+
+    def _set_expanded_ui(self) -> None:
+        self._pill.setVisible(True)
+        self._panel.setVisible(True)
+
+        # Calculate target height based on content, capped at max
+        content_height = self._panel.sizeHint().height()
+        target = min(content_height, self._max_panel_height)
+        target = max(target, 120)  # Never smaller than 120 px
+
+        self._animate_panel(target)
+
+    def _animate_panel(self, target_height: int, on_finished=None) -> None:
+        anim = QPropertyAnimation(self._panel, b"minimumHeight", self)
         anim.setDuration(250)
-        anim.setStartValue(self._panel.maximumHeight())
+        anim.setStartValue(self._panel.height())
         anim.setEndValue(target_height)
         anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        if on_finished:
-            anim.finished.connect(on_finished)
+
+        def _on_anim_finished():
+            self._panel.setFixedHeight(target_height)
+            self._resize_to_content()
+            if on_finished:
+                on_finished()
+
+        anim.finished.connect(_on_anim_finished)
         anim.start()
+
+    def _resize_to_content(self) -> None:
+        """Shrink-wrap window height to current visible children."""
+        # Force layout recalculation so sizeHint is accurate
+        self._layout.invalidate()
+        self._layout.activate()
+        self.adjustSize()
+
+    # ------------------------------------------------------------------
+    # Shortcuts helpers
+    # ------------------------------------------------------------------
 
     def _approve_first_permission(self) -> None:
         from island_ui.cards.permission_card import PermissionCard
@@ -182,6 +234,10 @@ class IslandWindow(QMainWindow):
         from island_ui.events import PermissionRequested
         event = PermissionRequested(action="Test injection from debug mode")
         self._event_source.inject_event(event)
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
     def start(self) -> None:
         self._event_source.start()
