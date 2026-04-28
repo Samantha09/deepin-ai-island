@@ -163,6 +163,14 @@ class ExpandedPanel(QWidget):
         self.back_to_list.emit()
         self.show_session_list()
 
+    def clear_cards(self) -> None:
+        """清理所有事件卡片。"""
+        for i in reversed(range(self._cards_layout.count() - 1)):
+            widget = self._cards_layout.itemAt(i).widget()
+            if widget:
+                widget.deleteLater()
+        self._cards.clear()
+
     def clear_sessions(self) -> None:
         for item in self._session_items.values():
             item.deleteLater()
