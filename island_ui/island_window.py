@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, QTimer, QPoint, QRect, Signal, QPropertyAnimation
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QSizePolicy,
 )
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut, QRegion, QPainterPath
 
 from island_ui.compact_pill import CompactPill
 from island_ui.expanded_panel import ExpandedPanel
@@ -40,7 +40,6 @@ class IslandWindow(QWidget):
             | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setWindowFlags(flags)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
         # Position at top-center of primary screen
@@ -52,7 +51,8 @@ class IslandWindow(QWidget):
         self.move(x, screen.y() + 12)
 
     def _setup_ui(self) -> None:
-        self.setStyleSheet("background: transparent;")
+        self.setStyleSheet("background-color: #151519;")
+        self._corner_radius = 20
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -207,10 +207,22 @@ class IslandWindow(QWidget):
 
     def _resize_to_content(self) -> None:
         """Shrink-wrap window height to current visible children."""
-        # Force layout recalculation so sizeHint is accurate
         self._layout.invalidate()
         self._layout.activate()
         self.adjustSize()
+        self._set_rounded_mask()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._set_rounded_mask()
+
+    def _set_rounded_mask(self) -> None:
+        """Clip window to rounded rectangle so edges don't show desktop wallpaper."""
+        path = QPainterPath()
+        path.addRoundedRect(self.rect(), self._corner_radius, self._corner_radius)
+        polygon = path.toFillPolygon()
+        region = QRegion(polygon.toPolygon())
+        self.setMask(region)
 
     # ------------------------------------------------------------------
     # Shortcuts helpers
