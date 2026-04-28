@@ -110,15 +110,22 @@ class IslandWindow(QWidget):
 
         # Session lifecycle events
         if isinstance(event, SessionStarted):
-            session = Session(
-                id=event.session_id,
-                name=event.payload.get("task", "Untitled"),
-                agent=agent or "Unknown",
-                terminal=event.payload.get("terminal", "Terminal"),
-                start_time=event.timestamp,
-            )
-            self._sessions[event.session_id] = session
-            self._panel.add_session_item(session)
+            existing = self._sessions.get(event.session_id)
+            if existing:
+                # 避免重复创建 Session 对象导致 UI 引用旧实例
+                existing.status = "running"
+                existing.add_event(event)
+                self._panel.update_session_item(existing)
+            else:
+                session = Session(
+                    id=event.session_id,
+                    name=event.payload.get("task", "Untitled"),
+                    agent=agent or "Unknown",
+                    terminal=event.payload.get("terminal", "Terminal"),
+                    start_time=event.timestamp,
+                )
+                self._sessions[event.session_id] = session
+                self._panel.add_session_item(session)
             self._update_pill()
             return
 
