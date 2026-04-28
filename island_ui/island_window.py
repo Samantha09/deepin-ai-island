@@ -147,14 +147,18 @@ class IslandWindow(QWidget):
 
         card = CardFactory.create_card(event, self._panel)
         if card:
-            card.resolved.connect(self._on_card_resolved)
-            # PermissionCard 有 responded 信号，需要额外连接以支持 socket 回传
+            # 已 resolved 的 permission 不再重复创建卡片
             from island_ui.cards.permission_card import PermissionCard
             if isinstance(card, PermissionCard):
+                tid = card.tool_use_id()
+                if session and session.is_permission_resolved(tid):
+                    card.deleteLater()
+                    return
                 card.responded.connect(
-                    lambda resp, tid=card.tool_use_id(): self._on_permission_responded(tid, resp)
+                    lambda resp, tid=tid: self._on_permission_responded(tid, resp)
                 )
                 card.open_chat.connect(self._on_permission_open_chat)
+            card.resolved.connect(self._on_card_resolved)
             self._panel.add_event_card(card)
 
         self._update_pill()
@@ -192,6 +196,12 @@ class IslandWindow(QWidget):
         decision = "allow" if getattr(response, "approved", False) else "deny"
         if hasattr(self._event_source, "respond_to_permission"):
             self._event_source.respond_to_permission(tool_use_id, decision)
+        # 标记该 permission 已处理，避免再次进入 detail view 时重复显示
+        session = self._sessions.get(response.session_id)
+        if session:
+            session.mark_permission_resolved(tool_use_id)
+            self._panel.update_session_item(session)
+            self._update_pill()
 
     def _on_permission_open_chat(self, session_id: str) -> None:
         """当用户在 PermissionCard 上点击 Open Chat 时，展开并切换到会话详情。"""
@@ -208,18 +218,23 @@ class IslandWindow(QWidget):
         if not session:
             return
         self._panel.show_event_detail(session_id, session.name)
-        # Add all session events as cards
+        # Add session events as cards，跳过已 resolved 的 permission
         for event in session.events:
             card = CardFactory.create_card(event, self._panel)
-            if card:
-                card.resolved.connect(self._on_card_resolved)
-                from island_ui.cards.permission_card import PermissionCard
-                if isinstance(card, PermissionCard):
-                    card.responded.connect(
-                        lambda resp, tid=card.tool_use_id(): self._on_permission_responded(tid, resp)
-                    )
-                    card.open_chat.connect(self._on_permission_open_chat)
-                self._panel.add_event_card(card)
+            if not card:
+                continue
+            from island_ui.cards.permission_card import PermissionCard
+            if isinstance(card, PermissionCard):
+                tid = card.tool_use_id()
+                if session.is_permission_resolved(tid):
+                    card.deleteLater()
+                    continue
+                card.responded.connect(
+                    lambda resp, tid=tid: self._on_permission_responded(tid, resp)
+                )
+                card.open_chat.connect(self._on_permission_open_chat)
+            card.resolved.connect(self._on_card_resolved)
+            self._panel.add_event_card(card)
 
     # ------------------------------------------------------------------
     # User interactions
@@ -291,7 +306,7 @@ class IslandWindow(QWidget):
         self._panel.setVisible(True)
         self._panel.show_session_list()
 
-        content_height = self._panel.minimumSizeHint().height()
+        content_height = max(self._panel.minimumSizeHint().height(), self._panel.minimumHeight())
         target = min(content_height, self._max_panel_height)
         target = max(target, 200)
 

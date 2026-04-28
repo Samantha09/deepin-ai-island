@@ -14,6 +14,17 @@ class Session:
     start_time: float = field(default_factory=lambda: datetime.now().timestamp())
     status: str = "running"  # running, completed, needs_attention
     events: list[Event] = field(default_factory=list)
+    resolved_tool_use_ids: set[str] = field(default_factory=set)
+
+    def is_permission_resolved(self, tool_use_id: str) -> bool:
+        return tool_use_id in self.resolved_tool_use_ids
+
+    def mark_permission_resolved(self, tool_use_id: str) -> None:
+        if tool_use_id:
+            self.resolved_tool_use_ids.add(tool_use_id)
+        # 所有等待中的权限都已处理，恢复为 running
+        if self.status == "needs_attention":
+            self.status = "running"
 
     def add_event(self, event: Event) -> None:
         self.events.append(event)

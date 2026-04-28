@@ -96,6 +96,7 @@ class SessionListItem(QFrame):
         """)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumWidth(340)
+        self.setMinimumHeight(58)
 
     def mousePressEvent(self, event) -> None:
         self.clicked.emit(self._session.id)

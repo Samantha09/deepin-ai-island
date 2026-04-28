@@ -30,7 +30,7 @@ class ExpandedPanel(QWidget):
         self._session_list_widget.setStyleSheet("background-color: #1e1e23;")
         self._session_list_layout = QVBoxLayout(self._session_list_widget)
         self._session_list_layout.setContentsMargins(12, 12, 12, 12)
-        self._session_list_layout.setSpacing(12)
+        self._session_list_layout.setSpacing(8)
         self._session_list_layout.addStretch()
 
         self._session_scroll = QScrollArea()
@@ -150,12 +150,13 @@ class ExpandedPanel(QWidget):
         if session.id in self._session_items:
             self._session_items[session.id].update_status()
             return
+        print(f"[UI] add_session_item: {session.id[:8]}, name={session.name}")
         item = SessionListItem(session, self._session_list_widget)
         item.clicked.connect(self.session_selected.emit)
         self._session_items[session.id] = item
         # Insert before stretch
         self._session_list_layout.insertWidget(self._session_list_layout.count() - 1, item)
-        self._update_minimum_height()
+        print(f"[UI] total session items now: {len(self._session_items)}")
 
     def update_session_item(self, session: Session) -> None:
         if session.id in self._session_items:
@@ -186,25 +187,11 @@ class ExpandedPanel(QWidget):
         item = self._session_items.pop(session_id, None)
         if item:
             item.deleteLater()
-            self._update_minimum_height()
 
     def clear_sessions(self) -> None:
         for item in self._session_items.values():
             item.deleteLater()
         self._session_items.clear()
-
-    def _update_minimum_height(self) -> None:
-        count = len(self._session_items)
-        if count == 0:
-            self.setMinimumHeight(120)
-            self._session_list_widget.setMinimumHeight(80)
-        else:
-            # 每个 item ~80px + margins 24px + spacing between items
-            height = 80 * count + 24 + max(0, count - 1) * 12
-            target = min(height + 20, 400)
-            target = max(target, 200)  # 不低于 QScrollArea 的 minimumHeight
-            self.setMinimumHeight(target)
-            self._session_list_widget.setMinimumHeight(height)
 
     def card_count(self) -> int:
         return len(self._cards)
