@@ -36,7 +36,7 @@ class ExpandedPanel(QWidget):
     def _setup_style(self) -> None:
         self.setStyleSheet("""
             ExpandedPanel {
-                background-color: rgba(25, 25, 30, 0.95);
+                background-color: #1e1e23;
                 border-radius: 16px;
                 border: 1px solid rgba(255, 255, 255, 0.08);
             }
