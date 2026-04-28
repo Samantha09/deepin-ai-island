@@ -2,7 +2,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication, QFrame,
+    QWidget, QVBoxLayout, QApplication,
 )
 from PySide6.QtGui import QKeySequence, QShortcut, QColor
 
@@ -11,7 +11,8 @@ from island_ui.expanded_panel import ExpandedPanel
 from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.card_factory import CardFactory
 from island_ui.event_source import EventSource
-from island_ui.events import Event
+from island_ui.events import Event, SessionStarted, SessionEnded
+from island_ui.session import Session
 
 
 class IslandWindow(QWidget):
@@ -27,6 +28,7 @@ class IslandWindow(QWidget):
         self._event_source = event_source
         self._state_machine = state_machine
         self._agents: set[str] = set()
+        self._sessions: dict[str, Session] = {}
 
         self._setup_window()
         self._setup_ui()
@@ -48,7 +50,6 @@ class IslandWindow(QWidget):
         self.move(x, screen.y() + 12)
 
     def _setup_ui(self) -> None:
-        # Use palette instead of stylesheet/paintEvent for reliable solid background
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor("#151519"))
         self.setPalette(palette)
@@ -70,7 +71,6 @@ class IslandWindow(QWidget):
         self.setFixedWidth(400)
         self.setMinimumHeight(48)
 
-        # Delayed leave timer to avoid flickering when moving between child widgets
         self._leave_timer = QTimer(self)
         self._leave_timer.setSingleShot(True)
         self._leave_timer.timeout.connect(self._on_delayed_leave)
@@ -79,6 +79,7 @@ class IslandWindow(QWidget):
         self._event_source.event_received.connect(self._on_event)
         self._state_machine.state_changed.connect(self._on_state_changed)
         self._pill.clicked.connect(self._on_pill_clicked)
+        self._panel.session_selected.connect(self._on_session_selected)
 
     def _setup_shortcuts(self) -> None:
         toggle = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
@@ -107,22 +108,71 @@ class IslandWindow(QWidget):
         if agent:
             self._agents.add(agent)
 
+        # Session lifecycle events
+        if isinstance(event, SessionStarted):
+            session = Session(
+                id=event.session_id,
+                name=event.payload.get("task", "Untitled"),
+                agent=agent or "Unknown",
+                terminal=event.payload.get("terminal", "Terminal"),
+                start_time=event.timestamp,
+            )
+            self._sessions[event.session_id] = session
+            self._panel.add_session_item(session)
+            self._update_pill()
+            return
+
+        if isinstance(event, SessionEnded):
+            session = self._sessions.get(event.session_id)
+            if session:
+                session.status = "completed"
+                self._panel.update_session_item(session)
+            self._update_pill()
+            return
+
+        # Regular events: route to session or fallback to global cards
+        session = self._sessions.get(event.session_id)
+        if session:
+            session.add_event(event)
+            self._panel.update_session_item(session)
+
         card = CardFactory.create_card(event, self._panel)
         if card:
             card.resolved.connect(self._on_card_resolved)
-            self._panel.add_card(card)
+            self._panel.add_event_card(card)
 
         self._update_pill()
 
     def _update_pill(self) -> None:
+        # Count sessions needing attention + unresolved events
+        needs_attention = sum(
+            1 for s in self._sessions.values() if s.status == "needs_attention"
+        )
         unresolved = self._panel.unresolved_count()
-        self._pill.set_count(unresolved)
+        total = max(needs_attention, unresolved)
+        self._pill.set_count(total)
         self._pill.set_agents(list(self._agents))
 
     def _on_card_resolved(self, card) -> None:
         self._update_pill()
         if self._panel.unresolved_count() == 0:
             self._state_machine.on_all_resolved()
+
+    # ------------------------------------------------------------------
+    # Session selection → detail view
+    # ------------------------------------------------------------------
+
+    def _on_session_selected(self, session_id: str) -> None:
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+        self._panel.show_event_detail(session_id, session.name)
+        # Add all session events as cards
+        for event in session.events:
+            card = CardFactory.create_card(event, self._panel)
+            if card:
+                card.resolved.connect(self._on_card_resolved)
+                self._panel.add_event_card(card)
 
     # ------------------------------------------------------------------
     # User interactions
@@ -175,16 +225,20 @@ class IslandWindow(QWidget):
         self._panel.setVisible(False)
         self._panel.setFixedHeight(0)
         self._panel.clear_cards()
+        self._panel.clear_sessions()
         self._agents.clear()
+        self._sessions.clear()
         self._resize_to_content()
 
     def _set_compact_ui(self) -> None:
         self._pill.setVisible(True)
+        self._panel.show_session_list()
         self._animate_panel(0, on_finished=lambda: self._panel.setVisible(False))
 
     def _set_expanded_ui(self) -> None:
         self._pill.setVisible(True)
         self._panel.setVisible(True)
+        self._panel.show_session_list()
 
         content_height = self._panel.sizeHint().height()
         target = min(content_height, self._max_panel_height)
@@ -193,7 +247,6 @@ class IslandWindow(QWidget):
         self._animate_panel(target)
 
     def _animate_panel(self, target_height: int, on_finished=None) -> None:
-        # Skip animation if target is same as current to avoid unnecessary redraws
         if self._panel.height() == target_height:
             if on_finished:
                 on_finished()

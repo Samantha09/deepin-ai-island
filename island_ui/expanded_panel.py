@@ -1,15 +1,22 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QScrollArea, QFrame,
+    QWidget, QVBoxLayout, QScrollArea, QFrame, QPushButton, QLabel,
 )
 
 from island_ui.cards.base_card import EventCard
+from island_ui.cards.session_list_item import SessionListItem
+from island_ui.session import Session
 
 
 class ExpandedPanel(QWidget):
+    session_selected = Signal(str)
+    back_to_list = Signal()
+
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
         self._cards: list[EventCard] = []
+        self._session_items: dict[str, SessionListItem] = {}
+        self._current_session_id: str = ""
         self._setup_ui()
         self._setup_style()
 
@@ -18,21 +25,67 @@ class ExpandedPanel(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
 
-        self._scroll = QScrollArea()
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # ── Session List View ──
+        self._session_list_widget = QWidget()
+        self._session_list_layout = QVBoxLayout(self._session_list_widget)
+        self._session_list_layout.setContentsMargins(12, 12, 12, 12)
+        self._session_list_layout.setSpacing(8)
+        self._session_list_layout.addStretch()
 
-        self._container = QWidget()
-        self._container.setStyleSheet("background-color: #1e1e23;")
-        self._container_layout = QVBoxLayout(self._container)
-        self._container_layout.setContentsMargins(12, 12, 12, 12)
-        self._container_layout.setSpacing(10)
-        self._container_layout.addStretch()
+        self._session_scroll = QScrollArea()
+        self._session_scroll.setWidgetResizable(True)
+        self._session_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._session_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._session_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._session_scroll.setWidget(self._session_list_widget)
 
-        self._scroll.setWidget(self._container)
-        self._layout.addWidget(self._scroll)
+        # ── Event Detail View ──
+        self._detail_widget = QWidget()
+        self._detail_layout = QVBoxLayout(self._detail_widget)
+        self._detail_layout.setContentsMargins(12, 12, 12, 12)
+        self._detail_layout.setSpacing(10)
+
+        # Back button
+        self._back_btn = QPushButton("←  Back")
+        self._back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #888888;
+                border: none;
+                font-size: 13px;
+                padding: 4px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                color: #eeeeee;
+            }
+        """)
+        self._back_btn.clicked.connect(self._on_back)
+        self._detail_layout.addWidget(self._back_btn)
+
+        self._detail_title = QLabel("")
+        self._detail_title.setStyleSheet("font-size: 14px; color: #eeeeee; font-weight: 500;")
+        self._detail_layout.addWidget(self._detail_title)
+
+        self._cards_container = QWidget()
+        self._cards_layout = QVBoxLayout(self._cards_container)
+        self._cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._cards_layout.setSpacing(10)
+        self._cards_layout.addStretch()
+        self._detail_layout.addWidget(self._cards_container)
+
+        self._detail_scroll = QScrollArea()
+        self._detail_scroll.setWidgetResizable(True)
+        self._detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._detail_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._detail_scroll.setWidget(self._detail_widget)
+
+        # Add both to main layout, only one visible at a time
+        self._layout.addWidget(self._session_scroll)
+        self._layout.addWidget(self._detail_scroll)
+
+        self._show_view("list")
 
     def _setup_style(self) -> None:
         self.setStyleSheet("""
@@ -60,26 +113,60 @@ class ExpandedPanel(QWidget):
             }
         """)
 
-    def add_card(self, card: EventCard) -> None:
+    def _show_view(self, view: str) -> None:
+        if view == "list":
+            self._session_scroll.setVisible(True)
+            self._detail_scroll.setVisible(False)
+            self._current_session_id = ""
+        else:
+            self._session_scroll.setVisible(False)
+            self._detail_scroll.setVisible(True)
+
+    def show_session_list(self) -> None:
+        self._show_view("list")
+
+    def show_event_detail(self, session_id: str, session_name: str) -> None:
+        self._current_session_id = session_id
+        self._detail_title.setText(session_name)
+        # Clear previous cards
+        for i in reversed(range(self._cards_layout.count() - 1)):
+            widget = self._cards_layout.itemAt(i).widget()
+            if widget:
+                widget.deleteLater()
+        self._cards.clear()
+        self._show_view("detail")
+
+    def add_session_item(self, session: Session) -> None:
+        if session.id in self._session_items:
+            self._session_items[session.id].update_status()
+            return
+        item = SessionListItem(session, self._session_list_widget)
+        item.clicked.connect(self.session_selected.emit)
+        self._session_items[session.id] = item
+        # Insert before stretch
+        self._session_list_layout.insertWidget(self._session_list_layout.count() - 1, item)
+
+    def update_session_item(self, session: Session) -> None:
+        if session.id in self._session_items:
+            self._session_items[session.id].update_status()
+
+    def add_event_card(self, card: EventCard) -> None:
         self._cards.append(card)
-        # Insert before the stretch
-        self._container_layout.insertWidget(self._container_layout.count() - 1, card)
+        self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
         card.resolved.connect(self._on_card_resolved)
 
     def _on_card_resolved(self, card: EventCard) -> None:
         if card in self._cards:
             self._cards.remove(card)
-        # card.deleteLater() is handled by the card itself after animation
 
-    def remove_card(self, card: EventCard) -> None:
-        if card in self._cards:
-            self._cards.remove(card)
-            card.deleteLater()
+    def _on_back(self) -> None:
+        self.back_to_list.emit()
+        self.show_session_list()
 
-    def clear_cards(self) -> None:
-        for card in self._cards:
-            card.deleteLater()
-        self._cards.clear()
+    def clear_sessions(self) -> None:
+        for item in self._session_items.values():
+            item.deleteLater()
+        self._session_items.clear()
 
     def card_count(self) -> int:
         return len(self._cards)
