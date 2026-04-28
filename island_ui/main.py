@@ -1,11 +1,45 @@
 import sys
 import argparse
 import os
+from pathlib import Path
 
 # Add project root to path for imports
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
+
+
+def _fix_qt_platform_plugin_path() -> None:
+    """Deepin/DDE 桌面需要 dxcb 插件，但虚拟环境 PySide6 可能缺少平台插件。
+    自动检测系统 Qt6 插件路径并设置环境变量。"""
+    if os.environ.get("QT_QPA_PLATFORM_PLUGIN_PATH"):
+        return
+
+    # 检查虚拟环境是否自带平台插件
+    try:
+        import PySide6
+        venv_plugins = Path(PySide6.__file__).parent / "plugins" / "platforms"
+        if venv_plugins.exists() and any(venv_plugins.iterdir()):
+            return
+    except Exception:
+        pass
+
+    # 常见系统 Qt6 插件路径
+    candidates = [
+        "/usr/lib/x86_64-linux-gnu/qt6/plugins",
+        "/usr/lib/x86_64-linux-gnu/qt5/plugins",
+        "/usr/lib/qt6/plugins",
+        "/usr/lib/qt5/plugins",
+        "/usr/local/lib/qt6/plugins",
+    ]
+    for path in candidates:
+        platforms = Path(path) / "platforms"
+        if platforms.exists() and any(platforms.glob("libq*.so")):
+            os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = path
+            break
+
+
+_fix_qt_platform_plugin_path()
 
 import yaml
 from PySide6.QtWidgets import QApplication
