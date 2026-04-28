@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QFrame,
 )
-from PySide6.QtGui import QKeySequence, QShortcut, QPainter, QColor
+from PySide6.QtGui import QKeySequence, QShortcut, QColor
 
 from island_ui.compact_pill import CompactPill
 from island_ui.expanded_panel import ExpandedPanel
@@ -48,7 +48,11 @@ class IslandWindow(QWidget):
         self.move(x, screen.y() + 12)
 
     def _setup_ui(self) -> None:
-        self.setStyleSheet("background-color: #151519;")
+        # Use palette instead of stylesheet/paintEvent for reliable solid background
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor("#151519"))
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(8, 8, 8, 8)
@@ -70,13 +74,6 @@ class IslandWindow(QWidget):
         self._leave_timer = QTimer(self)
         self._leave_timer.setSingleShot(True)
         self._leave_timer.timeout.connect(self._on_delayed_leave)
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setBrush(QColor("#151519"))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRect(self.rect())
-        painter.end()
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
