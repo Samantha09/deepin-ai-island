@@ -21,6 +21,10 @@ class Session:
             self.status = "needs_attention"
         elif event.type == "session.ended":
             self.status = "completed"
+        elif event.type == "progress.updated":
+            # 进度更新时，如果之前是 needs_attention，恢复为 running
+            if self.status == "needs_attention":
+                self.status = "running"
 
     def last_event(self) -> Optional[Event]:
         return self.events[-1] if self.events else None

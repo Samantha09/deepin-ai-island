@@ -148,13 +148,11 @@ class IslandWindow(QWidget):
         self._update_pill()
 
     def _update_pill(self) -> None:
-        # Count sessions needing attention + unresolved events
+        # 统计需要注意的会话数（waiting / 有未处理权限请求）
         needs_attention = sum(
             1 for s in self._sessions.values() if s.status == "needs_attention"
         )
-        unresolved = self._panel.unresolved_count()
-        total = max(needs_attention, unresolved)
-        self._pill.set_count(total)
+        self._pill.set_count(needs_attention)
         self._pill.set_agents(list(self._agents))
 
     def _on_card_resolved(self, card) -> None:
