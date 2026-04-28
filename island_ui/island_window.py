@@ -123,11 +123,12 @@ class IslandWindow(QWidget):
             return
 
         if isinstance(event, SessionEnded):
-            session = self._sessions.pop(event.session_id, None)
+            session = self._sessions.get(event.session_id)
             if session:
-                self._panel.remove_session_item(event.session_id)
-            if not self._sessions:
-                self._agents.clear()
+                # 标记为已完成，保留在列表中而不是删除
+                session.status = "completed"
+                session.add_event(event)
+                self._panel.update_session_item(session)
             self._update_pill()
             return
 
