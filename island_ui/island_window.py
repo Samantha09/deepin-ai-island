@@ -160,7 +160,7 @@ class IslandWindow(QWidget):
         self._update_pill()
 
     def _update_pill(self) -> None:
-        # 统计活跃会话总数（非 completed 的），让用户一眼看到有几个 Claude 在跑
+        total = len(self._sessions)
         active = sum(1 for s in self._sessions.values() if s.status != "completed")
         waiting = sum(1 for s in self._sessions.values() if s.status == "needs_attention")
 
@@ -177,7 +177,7 @@ class IslandWindow(QWidget):
                     waiting_label = waiting_label[:33] + "..."
                 break
 
-        self._pill.set_count(waiting, active, waiting_label)
+        self._pill.set_count(waiting, active, total, waiting_label)
         self._pill.set_agents(list(self._agents))
 
     def _on_card_resolved(self, card) -> None:
