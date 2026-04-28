@@ -30,7 +30,7 @@ class CompactPill(QFrame):
     def _setup_style(self) -> None:
         self.setStyleSheet("""
             CompactPill {
-                background-color: rgba(30, 30, 35, 0.92);
+                background-color: #1e1e23;
                 border-radius: 20px;
                 border: 1px solid rgba(255, 255, 255, 0.08);
             }

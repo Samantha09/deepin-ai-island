@@ -40,7 +40,6 @@ class IslandWindow(QWidget):
             | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setWindowFlags(flags)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
         # Position at top-center of primary screen
@@ -52,7 +51,7 @@ class IslandWindow(QWidget):
         self.move(x, screen.y() + 12)
 
     def _setup_ui(self) -> None:
-        self.setStyleSheet("background: transparent;")
+        self.setStyleSheet("background-color: #151519; border-radius: 20px;")
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
