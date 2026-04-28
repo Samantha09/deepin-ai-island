@@ -1,6 +1,6 @@
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QFrame,
 )
@@ -66,12 +66,16 @@ class IslandWindow(QWidget):
         self.setFixedWidth(400)
         self.setMinimumHeight(48)
 
+        # Delayed leave timer to avoid flickering when moving between child widgets
+        self._leave_timer = QTimer(self)
+        self._leave_timer.setSingleShot(True)
+        self._leave_timer.timeout.connect(self._on_delayed_leave)
+
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setBrush(QColor("#151519"))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(self.rect(), 16, 16)
+        painter.drawRect(self.rect())
         painter.end()
 
     def _setup_connections(self) -> None:
@@ -143,14 +147,19 @@ class IslandWindow(QWidget):
         self._state_machine.on_collapse_requested()
 
     def enterEvent(self, event) -> None:
+        self._leave_timer.stop()
         if self._state_machine.state() == IslandState.COMPACT:
             self._state_machine.on_expand_requested()
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
-            self._state_machine.on_collapse_requested()
+            self._leave_timer.start(400)
         super().leaveEvent(event)
+
+    def _on_delayed_leave(self) -> None:
+        if self._state_machine.state() == IslandState.EXPANDED:
+            self._state_machine.on_collapse_requested()
 
     # ------------------------------------------------------------------
     # State changes → UI updates
@@ -187,11 +196,18 @@ class IslandWindow(QWidget):
         self._animate_panel(target)
 
     def _animate_panel(self, target_height: int, on_finished=None) -> None:
-        anim = QPropertyAnimation(self._panel, b"minimumHeight", self)
-        anim.setDuration(250)
+        # Skip animation if target is same as current to avoid unnecessary redraws
+        if self._panel.height() == target_height:
+            if on_finished:
+                on_finished()
+            self._resize_to_content()
+            return
+
+        anim = QPropertyAnimation(self._panel, b"maximumHeight", self)
+        anim.setDuration(180)
         anim.setStartValue(self._panel.height())
         anim.setEndValue(target_height)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.setEasingCurve(QEasingCurve.Type.OutQuad)
 
         def _on_anim_finished():
             self._panel.setFixedHeight(target_height)

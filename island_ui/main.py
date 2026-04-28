@@ -9,6 +9,7 @@ if _project_root not in sys.path:
 
 import yaml
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont
 
 from island_ui.event_source import MockEventSource
 from island_ui.state_machine import IslandStateMachine
@@ -23,6 +24,18 @@ def load_config(path: str = None) -> dict:
         return yaml.safe_load(f)
 
 
+def _setup_font(app: QApplication) -> None:
+    """Set a font that supports CJK characters to avoid garbled text."""
+    font = QFont()
+    font.setPointSize(13)
+    # Try common CJK fonts on Linux, fallback to system default
+    for family in ["Noto Sans CJK SC", "WenQuanYi Micro Hei", "Source Han Sans SC", "DejaVu Sans"]:
+        font.setFamily(family)
+        if font.exactMatch():
+            break
+    app.setFont(font)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Deepin AI Island")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -34,6 +47,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    _setup_font(app)
 
     compact_timeout = island_cfg.get("compact_timeout_ms", 5000)
     state_machine = IslandStateMachine(compact_timeout_ms=compact_timeout)
