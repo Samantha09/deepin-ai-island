@@ -25,9 +25,9 @@ def send_event_and_wait(data: dict) -> dict:
     try:
         sock.connect(SOCKET_PATH)
         sock.sendall(json.dumps(data, ensure_ascii=False).encode("utf-8"))
-    except (socket.error, OSError) as e:
-        # 连接失败时静默放行，避免阻塞 Claude Code
-        print(json.dumps({"systemMessage": f"AI Island 未运行: {e}"}), file=sys.stdout)
+    except (socket.error, OSError):
+        # AI Island 未运行时完全静默，不输出任何内容到 stdout
+        # Claude Code 会回退到终端默认行为（自己弹权限提示）
         return {}
 
     # 只有 PermissionRequest 需要等待响应
