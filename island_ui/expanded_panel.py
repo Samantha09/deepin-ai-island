@@ -155,6 +155,7 @@ class ExpandedPanel(QWidget):
         self._session_items[session.id] = item
         # Insert before stretch
         self._session_list_layout.insertWidget(self._session_list_layout.count() - 1, item)
+        self._update_minimum_height()
 
     def update_session_item(self, session: Session) -> None:
         if session.id in self._session_items:
@@ -185,11 +186,24 @@ class ExpandedPanel(QWidget):
         item = self._session_items.pop(session_id, None)
         if item:
             item.deleteLater()
+            self._update_minimum_height()
 
     def clear_sessions(self) -> None:
         for item in self._session_items.values():
             item.deleteLater()
         self._session_items.clear()
+
+    def _update_minimum_height(self) -> None:
+        count = len(self._session_items)
+        if count == 0:
+            self.setMinimumHeight(120)
+            self._session_list_widget.setMinimumHeight(80)
+        else:
+            # 每个 item ~70px + margins 24px + spacing between items
+            height = 70 * count + 24 + max(0, count - 1) * 8
+            target = min(height + 20, 400)
+            self.setMinimumHeight(target)
+            self._session_list_widget.setMinimumHeight(height)
 
     def card_count(self) -> int:
         return len(self._cards)

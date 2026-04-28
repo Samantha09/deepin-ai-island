@@ -146,6 +146,7 @@ class IslandWindow(QWidget):
                 card.responded.connect(
                     lambda resp, tid=card.tool_use_id(): self._on_permission_responded(tid, resp)
                 )
+                card.open_chat.connect(self._on_permission_open_chat)
             self._panel.add_event_card(card)
 
         self._update_pill()
@@ -170,6 +171,12 @@ class IslandWindow(QWidget):
         if hasattr(self._event_source, "respond_to_permission"):
             self._event_source.respond_to_permission(tool_use_id, decision)
 
+    def _on_permission_open_chat(self, session_id: str) -> None:
+        """当用户在 PermissionCard 上点击 Open Chat 时，展开并切换到会话详情。"""
+        if self._state_machine.state() != IslandState.EXPANDED:
+            self._state_machine.on_expand_requested()
+        self._on_session_selected(session_id)
+
     # ------------------------------------------------------------------
     # Session selection → detail view
     # ------------------------------------------------------------------
@@ -189,6 +196,7 @@ class IslandWindow(QWidget):
                     card.responded.connect(
                         lambda resp, tid=card.tool_use_id(): self._on_permission_responded(tid, resp)
                     )
+                    card.open_chat.connect(self._on_permission_open_chat)
                 self._panel.add_event_card(card)
 
     # ------------------------------------------------------------------
@@ -261,9 +269,9 @@ class IslandWindow(QWidget):
         self._panel.setVisible(True)
         self._panel.show_session_list()
 
-        content_height = self._panel.sizeHint().height()
+        content_height = self._panel.minimumSizeHint().height()
         target = min(content_height, self._max_panel_height)
-        target = max(target, 120)
+        target = max(target, 200)
 
         self._animate_panel(target)
 

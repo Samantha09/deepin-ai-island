@@ -131,6 +131,13 @@ class SessionListItem(QFrame):
                 desc = f"Question: {last.payload.get('question', '')}"
             elif last.type == "session.ended":
                 desc = "Completed"
+            elif last.type == "progress.updated":
+                msg = last.payload.get("message", "")
+                if msg.startswith("等待批准"):
+                    desc = msg
+                else:
+                    # 普通运行状态不更新描述，避免跳动
+                    return
             else:
-                desc = last.type
+                return
             self._desc_label.setText(desc)

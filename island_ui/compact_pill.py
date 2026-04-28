@@ -17,6 +17,12 @@ class CompactPill(QFrame):
         self._layout.setContentsMargins(16, 8, 16, 8)
         self._layout.setSpacing(8)
 
+        # Pending permission indicator (amber dot)
+        self._pending_indicator = QLabel("●")
+        self._pending_indicator.setStyleSheet("color: #FF9800; font-size: 10px;")
+        self._pending_indicator.setVisible(False)
+        self._layout.addWidget(self._pending_indicator)
+
         self._count_label = QLabel("0 requests")
         self._count_label.setStyleSheet("font-size: 13px; color: #eeeeee; font-weight: 500;")
         self._layout.addWidget(self._count_label)
@@ -48,6 +54,7 @@ class CompactPill(QFrame):
         else:
             text = "AI Island"
         self._count_label.setText(text)
+        self._pending_indicator.setVisible(waiting > 0)
         self.setVisible(active > 0 or waiting > 0)
 
     def set_agents(self, agents: list[str]) -> None:

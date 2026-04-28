@@ -328,20 +328,7 @@ class ClaudeCodeEventSource(EventSource):
                 payload={"status": "waiting", "waitingFor": waiting_for, "cwd": cwd},
             )
             self.event_received.emit(event)
-        elif status in ("busy", "running_tool", "processing"):
-            event = ProgressUpdated(
-                session_id=session_id,
-                message=f"状态: {status}",
-                payload={"status": status, "cwd": cwd},
-            )
-            self.event_received.emit(event)
-        elif status == "idle":
-            event = ProgressUpdated(
-                session_id=session_id,
-                message="空闲中",
-                payload={"status": status, "cwd": cwd},
-            )
-            self.event_received.emit(event)
+        # busy/processing/idle 等普通运行状态不生成 ProgressUpdated，避免 session list 描述频繁跳动
 
     # ------------------------------------------------------------------
     # Socket 事件解析
