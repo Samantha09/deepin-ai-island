@@ -9,9 +9,12 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 
-def _fix_qt_platform_plugin_path() -> None:
-    """Deepin/DDE 桌面需要 dxcb 插件，但虚拟环境 PySide6 可能缺少平台插件。
-    自动检测系统 Qt6 插件路径并设置环境变量。"""
+def _fix_qt_platform() -> None:
+    """Deepin/DDE 桌面默认要求 dxcb 插件，但虚拟环境 PySide6 通常没有。
+    强制使用标准 xcb 平台，并指向系统 Qt 插件路径。"""
+    # Deepin 会设置 QT_QPA_PLATFORM=dxcb;xcb，必须覆盖
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
     if os.environ.get("QT_QPA_PLATFORM_PLUGIN_PATH"):
         return
 
@@ -39,7 +42,7 @@ def _fix_qt_platform_plugin_path() -> None:
             break
 
 
-_fix_qt_platform_plugin_path()
+_fix_qt_platform()
 
 import yaml
 from PySide6.QtWidgets import QApplication
