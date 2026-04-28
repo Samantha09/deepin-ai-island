@@ -25,6 +25,7 @@ class ExpandedPanel(QWidget):
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         self._container = QWidget()
+        self._container.setStyleSheet("background-color: #1e1e23;")
         self._container_layout = QVBoxLayout(self._container)
         self._container_layout.setContentsMargins(12, 12, 12, 12)
         self._container_layout.setSpacing(10)
