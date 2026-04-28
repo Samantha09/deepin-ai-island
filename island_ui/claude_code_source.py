@@ -3,9 +3,10 @@ import os
 import socket
 import threading
 import time
+from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, Signal, QThread, QTimer
 
 from island_ui.event_source import EventSource
 from island_ui.events import (
@@ -18,24 +19,23 @@ from island_ui.events import (
 )
 
 SOCKET_PATH = "/tmp/ai-island.sock"
+SESSIONS_DIR = Path.home() / ".claude" / "sessions"
+POLL_INTERVAL_MS = 1500
 
 
 class SocketServerThread(QThread):
     """在后台线程中运行 Unix Socket 服务器，接收 Claude Code hook 事件。"""
 
     event_received = Signal(dict)
-    permission_resolved = Signal(str, str)  # session_id, tool_use_id
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
         self._running = False
         self._server_sock: Optional[socket.socket] = None
         self._lock = threading.Lock()
-        # tool_use_id -> (client_socket, threading.Event, received_at)
         self._pending: dict[str, tuple[socket.socket, threading.Event, float]] = {}
 
     def run(self) -> None:
-        # 清理旧 socket 文件
         try:
             os.unlink(SOCKET_PATH)
         except FileNotFoundError:
@@ -55,8 +55,6 @@ class SocketServerThread(QThread):
                 continue
             except OSError:
                 break
-
-            # 每个连接单独处理
             handler = threading.Thread(target=self._handle_client, args=(client,), daemon=True)
             handler.start()
 
@@ -66,7 +64,6 @@ class SocketServerThread(QThread):
 
     def stop(self) -> None:
         self._running = False
-        # 关闭所有挂起的权限连接
         with self._lock:
             for tool_use_id, (client_sock, event_obj, _) in list(self._pending.items()):
                 try:
@@ -75,17 +72,14 @@ class SocketServerThread(QThread):
                     pass
                 event_obj.set()
             self._pending.clear()
-
         if self._server_sock:
             try:
                 self._server_sock.close()
             except OSError:
                 pass
-
         self.wait(3000)
 
     def respond_to_permission(self, tool_use_id: str, decision: str, reason: str = "") -> bool:
-        """响应权限请求，写入 socket 并唤醒等待的 handler 线程。"""
         with self._lock:
             pending = self._pending.get(tool_use_id)
             if pending is None:
@@ -95,7 +89,6 @@ class SocketServerThread(QThread):
         response = {"decision": decision}
         if reason:
             response["reason"] = reason
-
         try:
             data = json.dumps(response, ensure_ascii=False).encode("utf-8")
             client_sock.sendall(data)
@@ -117,38 +110,27 @@ class SocketServerThread(QThread):
                 if not chunk:
                     break
                 chunks.append(chunk)
-                # 尝试解析完整 JSON
                 try:
                     data = json.loads(b"".join(chunks).decode("utf-8"))
                     break
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     continue
             else:
-                # 连接关闭且未收到完整 JSON
                 client.close()
                 return
         except (socket.timeout, OSError):
             client.close()
             return
 
-        # 解析事件
         event_name = data.get("event", "")
-        session_id = data.get("session_id", data.get("sessionId", ""))
         tool_use_id = data.get("tool_use_id", data.get("toolUseId", ""))
 
-        if event_name == "PermissionRequest":
-            # 需要保持连接等待响应
+        if event_name == "PermissionRequest" and tool_use_id:
             event_obj = threading.Event()
             with self._lock:
                 self._pending[tool_use_id] = (client, event_obj, time.time())
-
-            # 发射信号到主线程（UI）
             self.event_received.emit(data)
-
-            # 阻塞等待用户决策（最长24小时）
             event_obj.wait(timeout=86400)
-
-            # 如果超时未被响应，清理
             with self._lock:
                 if tool_use_id in self._pending:
                     try:
@@ -158,7 +140,6 @@ class SocketServerThread(QThread):
                         pass
                     self._pending.pop(tool_use_id, None)
         else:
-            # 其他事件不需要响应，直接关闭连接
             try:
                 client.close()
             except OSError:
@@ -167,49 +148,153 @@ class SocketServerThread(QThread):
 
 
 class ClaudeCodeEventSource(EventSource):
-    """通过 Unix Socket 接收 Claude Code hook 事件的 EventSource。
+    """Claude Code 事件源：Unix Socket + 会话文件轮询。
 
-    Claude Code 的 hook 脚本（claude_hooks/ai_island_hook.py）通过
-    Unix Domain Socket 将事件实时推送到本类，PermissionRequest 支持双向响应。
+    同时通过两种机制获取事件：
+    1. Unix Socket：接收 hook 实时推送的事件，支持 PermissionRequest 双向响应
+    2. 轮询 ~/.claude/sessions/*.json：主动发现所有活跃会话及状态变化
     """
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
         self._server = SocketServerThread(self)
         self._server.event_received.connect(self._on_raw_event)
-        self._session_names: dict[str, str] = {}
+
+        self._poll_timer = QTimer(self)
+        self._poll_timer.timeout.connect(self._poll_sessions)
+
+        # 已知的 session 状态：session_id -> {"status": ..., "cwd": ..., "waitingFor": ...}
+        self._known_sessions: dict[str, dict] = {}
 
     def start(self) -> None:
-        self._session_names.clear()
+        self._known_sessions.clear()
         if not self._server.isRunning():
             self._server.start()
+        self._poll_timer.start(POLL_INTERVAL_MS)
+        self._poll_sessions()
 
     def stop(self) -> None:
+        self._poll_timer.stop()
         self._server.stop()
 
     def respond_to_permission(self, tool_use_id: str, decision: str, reason: str = "") -> bool:
-        """从 UI 响应权限请求。"""
         return self._server.respond_to_permission(tool_use_id, decision, reason)
 
+    # ------------------------------------------------------------------
+    # Session 文件轮询
+    # ------------------------------------------------------------------
+
+    def _poll_sessions(self) -> None:
+        """扫描 ~/.claude/sessions/*.json，发现新会话和状态变化。"""
+        if not SESSIONS_DIR.exists():
+            return
+
+        current_ids: set[str] = set()
+
+        for session_file in SESSIONS_DIR.glob("*.json"):
+            try:
+                data = json.loads(session_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            session_id = data.get("sessionId", "")
+            if not session_id:
+                continue
+
+            current_ids.add(session_id)
+            status = data.get("status", "")
+            cwd = data.get("cwd", "")
+            waiting_for = data.get("waitingFor", "")
+
+            known = self._known_sessions.get(session_id)
+
+            if known is None:
+                # 新会话
+                self._known_sessions[session_id] = {
+                    "status": status,
+                    "cwd": cwd,
+                    "waitingFor": waiting_for,
+                }
+                self._emit_session_started(session_id, cwd)
+            else:
+                # 已有会话，检查状态变化
+                old_status = known.get("status")
+                old_waiting = known.get("waitingFor", "")
+
+                if status != old_status or waiting_for != old_waiting:
+                    known["status"] = status
+                    known["cwd"] = cwd
+                    known["waitingFor"] = waiting_for
+                    self._handle_status_change(session_id, status, waiting_for, cwd)
+
+        # 检测已消失的会话
+        for session_id in list(self._known_sessions.keys()):
+            if session_id not in current_ids:
+                del self._known_sessions[session_id]
+                self.event_received.emit(
+                    SessionEnded(session_id=session_id, payload={"status": "completed"})
+                )
+
+    def _emit_session_started(self, session_id: str, cwd: str) -> None:
+        task = f"Claude Code @ {Path(cwd).name if cwd else 'Unknown'}"
+        event = SessionStarted(
+            session_id=session_id,
+            payload={
+                "agent": "Claude Code",
+                "task": task,
+                "terminal": cwd,
+            },
+        )
+        self.event_received.emit(event)
+
+    def _handle_status_change(self, session_id: str, status: str, waiting_for: str, cwd: str) -> None:
+        if status == "waiting" and waiting_for:
+            # 解析 waitingFor，例如 "approve Bash"、"approve Write"
+            action = waiting_for
+            if waiting_for.startswith("approve "):
+                action = waiting_for[8:]  # 去掉 "approve "
+            event = PermissionRequested(
+                session_id=session_id,
+                action=action,
+                payload={"waitingFor": waiting_for, "cwd": cwd},
+            )
+            self.event_received.emit(event)
+        elif status in ("busy", "running_tool", "processing"):
+            event = ProgressUpdated(
+                session_id=session_id,
+                message=f"状态: {status}",
+                payload={"status": status, "cwd": cwd},
+            )
+            self.event_received.emit(event)
+        elif status == "idle":
+            event = ProgressUpdated(
+                session_id=session_id,
+                message="空闲中",
+                payload={"status": status, "cwd": cwd},
+            )
+            self.event_received.emit(event)
+
+    # ------------------------------------------------------------------
+    # Socket 事件解析
+    # ------------------------------------------------------------------
+
     def _on_raw_event(self, data: dict) -> None:
-        event = self._parse_event(data)
+        event = self._parse_socket_event(data)
         if event:
             self.event_received.emit(event)
 
-    def _parse_event(self, data: dict) -> Optional[Event]:
+    def _parse_socket_event(self, data: dict) -> Optional[Event]:
         event_name = data.get("event", "")
         session_id = data.get("session_id", data.get("sessionId", ""))
         payload = data.get("payload", {})
         timestamp = data.get("timestamp", time.time())
 
-        # 合并顶层字段到 payload
         for key in ("tool", "tool_input", "tool_use_id", "message", "status", "cwd", "pid", "tty"):
             if key in data:
                 payload[key] = data[key]
 
         if event_name == "SessionStart":
             task = payload.get("prompt", payload.get("task", "Claude Code 会话"))
-            self._session_names[session_id] = task
             return SessionStarted(
                 session_id=session_id,
                 payload={
@@ -235,10 +320,7 @@ class ClaudeCodeEventSource(EventSource):
             return PermissionRequested(
                 session_id=session_id,
                 action=action,
-                payload={
-                    "tool_use_id": payload.get("tool_use_id", ""),
-                    **payload,
-                },
+                payload={"tool_use_id": payload.get("tool_use_id", ""), **payload},
                 timestamp=timestamp,
             )
 
@@ -278,13 +360,7 @@ class ClaudeCodeEventSource(EventSource):
                 timestamp=timestamp,
             )
 
-        # 兜底：未知事件也包装为 Event 发出
-        return Event(
-            type=event_name,
-            payload=payload,
-            timestamp=timestamp,
-            session_id=session_id,
-        )
+        return Event(type=event_name, payload=payload, timestamp=timestamp, session_id=session_id)
 
     @staticmethod
     def _format_action(tool: str, tool_input: dict) -> str:

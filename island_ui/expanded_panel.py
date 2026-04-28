@@ -98,6 +98,9 @@ class ExpandedPanel(QWidget):
                 background: transparent;
                 border: none;
             }
+            QScrollArea::viewport {
+                background-color: #1e1e23;
+            }
             QScrollBar:vertical {
                 background: transparent;
                 width: 6px;
