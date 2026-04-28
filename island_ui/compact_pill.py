@@ -45,9 +45,11 @@ class CompactPill(QFrame):
         self.setMaximumWidth(400)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def set_count(self, waiting: int, active: int) -> None:
+    def set_count(self, waiting: int, active: int, waiting_label: str = "") -> None:
         self._count = waiting
-        if waiting > 0:
+        if waiting > 0 and waiting_label:
+            text = f"{waiting} waiting — {waiting_label}"
+        elif waiting > 0:
             text = f"{waiting} waiting / {active} active"
         elif active > 0:
             text = f"{active} active"

@@ -155,7 +155,21 @@ class IslandWindow(QWidget):
         # 统计活跃会话总数（非 completed 的），让用户一眼看到有几个 Claude 在跑
         active = sum(1 for s in self._sessions.values() if s.status != "completed")
         waiting = sum(1 for s in self._sessions.values() if s.status == "needs_attention")
-        self._pill.set_count(waiting, active)
+
+        # 第一个 waiting 会话的 action / 名称，用于 pill 直接展示
+        waiting_label = ""
+        for s in self._sessions.values():
+            if s.status == "needs_attention":
+                last = s.last_event()
+                if last and last.type == "permission.requested":
+                    waiting_label = last.payload.get("action", s.name)
+                else:
+                    waiting_label = s.name
+                if len(waiting_label) > 36:
+                    waiting_label = waiting_label[:33] + "..."
+                break
+
+        self._pill.set_count(waiting, active, waiting_label)
         self._pill.set_agents(list(self._agents))
 
     def _on_card_resolved(self, card) -> None:
