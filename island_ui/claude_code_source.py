@@ -304,7 +304,7 @@ class ClaudeCodeEventSource(EventSource):
                 )
 
     def _emit_session_started(self, session_id: str, cwd: str) -> None:
-        task = f"Claude Code @ {Path(cwd).name if cwd else 'Unknown'}"
+        task = Path(cwd).name if cwd else "Unknown"
         event = SessionStarted(
             session_id=session_id,
             payload={
@@ -357,13 +357,14 @@ class ClaudeCodeEventSource(EventSource):
             payload["tool_use_id"] = data["tool_use_id"]
 
         if event_name == "SessionStart":
-            task = payload.get("prompt", payload.get("task", "Claude Code 会话"))
+            cwd = payload.get("cwd", "")
+            task = payload.get("prompt", payload.get("task", Path(cwd).name if cwd else "Claude Code"))
             return SessionStarted(
                 session_id=session_id,
                 payload={
                     "agent": "Claude Code",
                     "task": task,
-                    "terminal": payload.get("cwd", ""),
+                    "terminal": cwd,
                     **{k: v for k, v in payload.items() if k not in ("agent", "task", "terminal")},
                 },
                 timestamp=timestamp,
