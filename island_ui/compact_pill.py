@@ -17,6 +17,7 @@ class CompactPill(QFrame):
         self._setup_style()
 
     def _setup_ui(self) -> None:
+        self.setFrameShape(QFrame.Shape.NoFrame)
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(14, 6, 14, 6)
         self._layout.setSpacing(6)

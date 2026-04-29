@@ -2,7 +2,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QVariantAnimation
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication, QGraphicsDropShadowEffect,
+    QWidget, QVBoxLayout, QApplication,
 )
 from PySide6.QtGui import QKeySequence, QShortcut, QColor
 
@@ -85,19 +85,6 @@ class IslandWindow(QWidget):
         self._leave_timer.timeout.connect(self._on_delayed_leave)
 
         self._panel_anim: Optional[QVariantAnimation] = None
-        self._setup_shadows()
-
-    def _setup_shadows(self) -> None:
-        """为 pill 和 panel 添加柔和阴影，增强悬浮感."""
-        for widget, radius, offset in (
-            (self._pill, 20, 6),
-            (self._panel, 24, 8),
-        ):
-            effect = QGraphicsDropShadowEffect(self)
-            effect.setBlurRadius(radius)
-            effect.setColor(QColor(0, 0, 0, 100))
-            effect.setOffset(0, offset)
-            widget.setGraphicsEffect(effect)
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
@@ -262,6 +249,9 @@ class IslandWindow(QWidget):
                 card.open_chat.connect(self._on_permission_open_chat)
             card.resolved.connect(self._on_card_resolved)
             self._panel.add_event_card(card)
+        # 根据详情内容重新调整面板高度
+        if self._state_machine.state() == IslandState.EXPANDED:
+            self._animate_panel(self._calc_panel_height())
 
     # ------------------------------------------------------------------
     # User interactions
@@ -392,16 +382,16 @@ class IslandWindow(QWidget):
         self._panel.show_session_list()
         self._animate_panel(0, on_finished=lambda: self._panel.setVisible(False))
 
+    def _calc_panel_height(self) -> int:
+        content_height = max(self._panel.minimumSizeHint().height(), self._panel.minimumHeight())
+        target = min(content_height, self._max_panel_height)
+        return max(target, 200)
+
     def _set_expanded_ui(self) -> None:
         self._pill.setVisible(True)
         self._panel.setVisible(True)
         self._panel.show_session_list()
-
-        content_height = max(self._panel.minimumSizeHint().height(), self._panel.minimumHeight())
-        target = min(content_height, self._max_panel_height)
-        target = max(target, 200)
-
-        self._animate_panel(target)
+        self._animate_panel(self._calc_panel_height())
 
     def _animate_panel(self, target_height: int, on_finished=None) -> None:
         if self._panel.height() == target_height:

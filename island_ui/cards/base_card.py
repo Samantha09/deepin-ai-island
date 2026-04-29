@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal, QObject
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QWidget, QSizePolicy
 
 from island_ui.animations import FadeSlideInAnimation, FadeSlideOutAnimation
 from island_ui.events import Event
@@ -13,6 +13,7 @@ class EventCard(QFrame):
         self._event = event
         self._resolved = False
         self._colors: dict[str, str] = {}
+        self.setFrameShape(QFrame.Shape.NoFrame)
         self._setup_style()
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(14, 14, 14, 14)
@@ -29,6 +30,7 @@ class EventCard(QFrame):
             }
         """)
         self.setMinimumWidth(320)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def set_content(self, title: str, body: str) -> None:
         self._title_label = QLabel(title)

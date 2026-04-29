@@ -95,6 +95,7 @@ class ExpandedPanel(QWidget):
 
     def show_session_list(self) -> None:
         self._show_view("list")
+        self._clear_selection()
 
     def show_event_detail(self, session_id: str, session_name: str) -> None:
         self._current_session_id = session_id
@@ -106,6 +107,17 @@ class ExpandedPanel(QWidget):
                 widget.deleteLater()
         self._cards.clear()
         self._show_view("detail")
+        self._set_selected_session(session_id)
+
+    def _set_selected_session(self, session_id: str) -> None:
+        """高亮当前选中的会话项，清除其他项的高亮."""
+        for sid, item in self._session_items.items():
+            item.set_selected(sid == session_id)
+
+    def _clear_selection(self) -> None:
+        """清除所有会话项的选中高亮."""
+        for item in self._session_items.values():
+            item.set_selected(False)
 
     def add_session_item(self, session: Session) -> None:
         if session.id in self._session_items:

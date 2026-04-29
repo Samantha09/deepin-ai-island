@@ -24,9 +24,17 @@ class SessionListItem(QFrame):
         self._setup_style()
 
     def _setup_ui(self) -> None:
+        self.setFrameShape(QFrame.Shape.NoFrame)
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(12, 8, 12, 8)
         self._layout.setSpacing(10)
+
+        # 左侧选中指示条（默认隐藏）
+        self._indicator = QFrame()
+        self._indicator.setFixedWidth(3)
+        self._indicator.setFixedHeight(0)
+        self._indicator.setStyleSheet("background: transparent; border: none; border-radius: 2px;")
+        self._layout.addWidget(self._indicator)
 
         # Status dot
         self._dot = QLabel("●")
@@ -64,6 +72,18 @@ class SessionListItem(QFrame):
 
         self._layout.addWidget(self._right)
 
+    def set_selected(self, selected: bool) -> None:
+        """切换左侧 accent 指示条显示状态."""
+        if selected:
+            self._indicator.setFixedHeight(20)
+            color = self._colors.get("accent_blue", "#007aff") if self._colors else "#007aff"
+            self._indicator.setStyleSheet(
+                f"background: {color}; border: none; border-radius: 2px;"
+            )
+        else:
+            self._indicator.setFixedHeight(0)
+            self._indicator.setStyleSheet("background: transparent; border: none; border-radius: 2px;")
+
     def _setup_style(self) -> None:
         self.setStyleSheet("""
             QFrame {
@@ -73,6 +93,9 @@ class SessionListItem(QFrame):
             }
             QFrame:hover {
                 background-color: #2c2c2e;
+            }
+            QFrame:pressed {
+                background-color: #3a3a3c;
             }
         """)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -91,6 +114,7 @@ class SessionListItem(QFrame):
             f"font-size: 11px; color: {colors['secondary_text']};"
         )
         self._tags_label.setText(self._build_tags(colors))
+        press_bg = colors.get("control_bg_hover", "#3a3a3c")
         self.setStyleSheet(
             f"QFrame {{"
             f"  background-color: {colors['card_bg']};"
@@ -99,6 +123,9 @@ class SessionListItem(QFrame):
             f"}}"
             f"QFrame:hover {{"
             f"  background-color: {colors['card_bg_hover']};"
+            f"}}"
+            f"QFrame:pressed {{"
+            f"  background-color: {press_bg};"
             f"}}"
         )
 
