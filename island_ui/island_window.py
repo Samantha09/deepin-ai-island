@@ -283,7 +283,7 @@ class IslandWindow(QWidget):
 
     def leaveEvent(self, event) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
-            self._leave_timer.start(800)
+            self._leave_timer.start(300)
         super().leaveEvent(event)
 
     def _on_delayed_leave(self) -> None:
@@ -379,8 +379,11 @@ class IslandWindow(QWidget):
 
     def _set_compact_ui(self) -> None:
         self._pill.setVisible(True)
-        self._panel.show_session_list()
-        self._animate_panel(0, on_finished=lambda: self._panel.setVisible(False))
+        def _on_collapse_finished():
+            self._panel.setVisible(False)
+            self._panel.show_session_list()
+            self._panel.clear_cards()
+        self._animate_panel(0, on_finished=_on_collapse_finished)
 
     def _calc_panel_height(self) -> int:
         content_height = max(self._panel.minimumSizeHint().height(), self._panel.minimumHeight())
