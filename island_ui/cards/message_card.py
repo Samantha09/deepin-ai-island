@@ -9,16 +9,23 @@ class MessageCard(EventCard):
 
     def __init__(self, event: Event, parent=None):
         super().__init__(event, parent)
+        self._colors: dict[str, str] = {}
         text = self._extract_text(event)
         if not text:
             text = event.type
 
-        label = QLabel(text)
-        label.setWordWrap(True)
-        label.setStyleSheet("font-size: 12px; color: #cccccc;")
+        self._label = QLabel(text)
+        self._label.setWordWrap(True)
         # 限制最大高度，约 3 行文本
-        label.setMaximumHeight(56)
-        self._layout.addWidget(label)
+        self._label.setMaximumHeight(56)
+        self._layout.addWidget(self._label)
+
+    def refresh_theme(self, colors: dict[str, str]) -> None:
+        """应用主题颜色."""
+        self._colors = colors
+        super().refresh_theme(colors)
+        secondary = colors.get("secondary_text", "#cccccc")
+        self._label.setStyleSheet(f"font-size: 12px; color: {secondary};")
 
     @staticmethod
     def _extract_text(event: Event) -> str:

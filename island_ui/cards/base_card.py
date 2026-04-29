@@ -22,8 +22,8 @@ class EventCard(QFrame):
 
     def _setup_style(self) -> None:
         self.setStyleSheet("""
-            EventCard {
-                background-color: rgba(255, 255, 255, 0.05);
+            QFrame {
+                background-color: #1c1c1e;
                 border-radius: 14px;
                 border: none;
             }
@@ -32,11 +32,11 @@ class EventCard(QFrame):
 
     def set_content(self, title: str, body: str) -> None:
         self._title_label = QLabel(title)
-        self._title_label.setStyleSheet("font-size: 11px; color: #888888;")
+        self._title_label.setStyleSheet("font-size: 11px; color: #8e8e93;")
         self._layout.addWidget(self._title_label)
 
         self._body_label = QLabel(body)
-        self._body_label.setStyleSheet("font-size: 13px; color: #eeeeee;")
+        self._body_label.setStyleSheet("font-size: 13px; color: #ffffff;")
         self._body_label.setWordWrap(True)
         self._layout.addWidget(self._body_label)
 
@@ -62,7 +62,7 @@ class EventCard(QFrame):
         """Apply theme colors to card."""
         self._colors = colors
         self.setStyleSheet(
-            f"EventCard {{"
+            f"QFrame {{"
             f"  background-color: {colors['card_bg']};"
             f"  border-radius: 14px;"
             f"  border: none;"

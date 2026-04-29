@@ -47,7 +47,7 @@ class StyledButton(QPushButton):
             hover_bg = c.get("control_bg_hover", "rgba(255,255,255,0.10)")
 
         self.setStyleSheet(
-            f"StyledButton {{"
+            f"QPushButton {{"
             f"  background-color: {bg};"
             f"  color: {fg};"
             f"  border: none;"
@@ -55,7 +55,7 @@ class StyledButton(QPushButton):
             f"  padding: 8px 14px;"
             f"  font-size: 12px;"
             f"}}"
-            f"StyledButton:hover {{"
+            f"QPushButton:hover {{"
             f"  background-color: {hover_bg};"
             f"}}"
         )

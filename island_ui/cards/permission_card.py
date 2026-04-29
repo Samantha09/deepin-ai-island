@@ -119,16 +119,16 @@ class PermissionCard(EventCard):
         self._deny_btn.refresh_theme(colors)
         # Allow 按钮保持白底黑字的高对比度
         self._allow_btn.setStyleSheet(f"""
-            StyledButton {{
+            QPushButton {{
                 background-color: {colors.get('primary_text', '#ffffff')};
-                color: {colors.get('surface', '#000000')};
+                color: {colors.get('inverse_text', '#000000')};
                 border: none;
                 border-radius: 8px;
                 padding: 8px 14px;
                 font-size: 12px;
                 font-weight: 600;
             }}
-            StyledButton:hover {{
+            QPushButton:hover {{
                 background-color: {colors.get('secondary_text', '#cccccc')};
             }}
         """)

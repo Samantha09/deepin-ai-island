@@ -39,7 +39,7 @@ class QuestionCard(EventCard):
             QLineEdit {
                 background-color: rgba(255, 255, 255, 0.08);
                 color: #eeeeee;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                border: none;
                 border-radius: 8px;
                 padding: 8px 12px;
                 font-size: 13px;
@@ -75,7 +75,7 @@ class QuestionCard(EventCard):
                 QLineEdit {{
                     background-color: {control_bg};
                     color: {primary};
-                    border: 1px solid {border};
+                    border: none;
                     border-radius: 8px;
                     padding: 8px 12px;
                     font-size: 13px;
@@ -84,7 +84,7 @@ class QuestionCard(EventCard):
 
         if hasattr(self, "_submit_btn"):
             self._submit_btn.setStyleSheet(f"""
-                StyledButton {{
+                QPushButton {{
                     background-color: {accent};
                     color: {colors.get('inverse_text', '#000000')};
                     border: none;
@@ -92,7 +92,7 @@ class QuestionCard(EventCard):
                     padding: 8px 16px;
                     font-size: 13px;
                 }}
-                StyledButton:hover {{
+                QPushButton:hover {{
                     background-color: {accent_hover};
                 }}
             """)

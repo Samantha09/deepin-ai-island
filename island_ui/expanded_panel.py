@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, QFrame, QPushButton, QLabel,
 )
+from PySide6.QtGui import QFont
 
 from island_ui.cards.base_card import EventCard
 from island_ui.cards.session_list_item import SessionListItem
@@ -28,7 +29,7 @@ class ExpandedPanel(QWidget):
         self._session_list_widget = QWidget()
         self._session_list_layout = QVBoxLayout(self._session_list_widget)
         self._session_list_layout.setContentsMargins(12, 12, 12, 12)
-        self._session_list_layout.setSpacing(12)
+        self._session_list_layout.setSpacing(8)
         self._session_list_layout.addStretch()
 
         self._session_scroll = QScrollArea()
@@ -115,6 +116,8 @@ class ExpandedPanel(QWidget):
         self._session_items[session.id] = item
         # Insert before stretch
         self._session_list_layout.insertWidget(self._session_list_layout.count() - 1, item)
+        if hasattr(self, "_colors"):
+            item.refresh_theme(self._colors)
         self._update_minimum_height()
 
     def update_session_item(self, session: Session) -> None:
@@ -124,6 +127,8 @@ class ExpandedPanel(QWidget):
     def add_event_card(self, card: EventCard) -> None:
         self._cards.append(card)
         self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
+        if hasattr(self, "_colors"):
+            card.refresh_theme(self._colors)
         card.resolved.connect(self._on_card_resolved)
 
     def _on_card_resolved(self, card: EventCard) -> None:
@@ -159,8 +164,8 @@ class ExpandedPanel(QWidget):
             self.setMinimumHeight(120)
             self._session_list_widget.setMinimumHeight(80)
         else:
-            # 每个 item ~80px + margins 24px + spacing between items
-            height = 80 * count + 24 + max(0, count - 1) * 12
+            # 每个 item ~58px + margins 24px + spacing between items
+            height = 58 * count + 24 + max(0, count - 1) * 8
             target = min(height + 20, 400)
             target = max(target, 200)  # 不低于 QScrollArea 的 minimumHeight
             self.setMinimumHeight(target)
@@ -177,62 +182,57 @@ class ExpandedPanel(QWidget):
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
         """Refresh panel and child widgets with the given color palette."""
+        self._colors = colors
+        bg = colors.get("panel_bg", "#000000")
+        primary = colors.get("primary_text", "#ffffff")
+        secondary = colors.get("secondary_text", "#8e8e93")
+
         self.setStyleSheet(f"""
-            ExpandedPanel {{
-                background-color: {colors['panel_bg']};
-                border-radius: 16px;
-                border: 1px solid {colors['border']};
+            QWidget {{
+                background-color: {bg};
+                border-radius: 20px;
+                border: none;
             }}
             QScrollArea {{
                 background: transparent;
                 border: none;
             }}
             QScrollArea::viewport {{
-                background-color: {colors['panel_bg']};
+                background-color: {bg};
             }}
             QScrollBar:vertical {{
                 background: transparent;
-                width: 6px;
+                width: 4px;
                 margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: rgba(255, 255, 255, 0.15);
-                border-radius: 3px;
+                background: {colors.get("muted_text", "#636366")};
+                border-radius: 2px;
                 min-height: 30px;
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
             }}
         """)
-        self._session_list_widget.setStyleSheet(
-            f"background-color: {colors['panel_bg']};"
-        )
-        self._detail_widget.setStyleSheet(
-            f"background-color: {colors['panel_bg']};"
-        )
-        self._cards_container.setStyleSheet(
-            f"background-color: {colors['panel_bg']};"
-        )
-        self._session_scroll.viewport().setStyleSheet(
-            f"background-color: {colors['panel_bg']};"
-        )
-        self._detail_scroll.viewport().setStyleSheet(
-            f"background-color: {colors['panel_bg']};"
-        )
+        self._session_list_widget.setStyleSheet(f"background-color: {bg};")
+        self._detail_widget.setStyleSheet(f"background-color: {bg};")
+        self._cards_container.setStyleSheet(f"background-color: {bg};")
+        self._session_scroll.viewport().setStyleSheet(f"background-color: {bg};")
+        self._detail_scroll.viewport().setStyleSheet(f"background-color: {bg};")
         self._detail_title.setStyleSheet(
-            f"font-size: 14px; color: {colors['primary_text']}; font-weight: 500;"
+            f"font-size: 14px; color: {primary}; font-weight: 500;"
         )
         self._back_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: {colors['secondary_text']};
+                color: {secondary};
                 border: none;
                 font-size: 13px;
                 padding: 4px;
                 text-align: left;
             }}
             QPushButton:hover {{
-                color: {colors['primary_text']};
+                color: {primary};
             }}
         """)
         for item in self._session_items.values():

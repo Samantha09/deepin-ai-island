@@ -132,14 +132,14 @@ class SettingsDrawer(QWidget):
     def refresh_theme(self, colors: dict[str, str]) -> None:
         """Apply theme colors to the drawer and its controls."""
         self.setStyleSheet(
-            f"SettingsDrawer {{"
+            f"QWidget {{"
             f"  background-color: {colors['panel_bg']};"
             f"  border-radius: 16px;"
             f"}}"
             f"QComboBox, QSpinBox {{"
             f"  background-color: {colors['control_bg']};"
             f"  color: {colors['primary_text']};"
-            f"  border: 1px solid {colors['border']};"
+            f"  border: none;"
             f"  border-radius: 6px;"
             f"  padding: 4px 8px;"
             f"  min-height: 24px;"

@@ -41,7 +41,7 @@ class BaseRow(QFrame):
         bg = self._colors.get("card_bg_hover", "rgba(255,255,255,0.08)") if self._hovered else "transparent"
         radius = "8px"
         self.setStyleSheet(
-            f"BaseRow {{"
+            f"QFrame {{"
             f"  background-color: {bg};"
             f"  border-radius: {radius};"
             f"}}"

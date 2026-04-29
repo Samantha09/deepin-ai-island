@@ -22,10 +22,10 @@ class CardFactory:
         elif isinstance(event, QuestionAsked):
             return QuestionCard(event, parent)
         elif isinstance(event, (ProgressUpdated, SessionStarted, SessionEnded)):
-            # 跳过 "等待批准" 开头的进度消息，避免与 PermissionCard 重复
             if isinstance(event, ProgressUpdated):
                 msg = event.payload.get("message", "")
-                if msg.startswith("等待批准"):
+                # 跳过与 PermissionCard 重复的等待消息，以及信息量低的已完成消息
+                if msg.startswith(("等待批准", "已完成")):
                     return None
             return MessageCard(event, parent)
         else:

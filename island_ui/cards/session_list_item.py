@@ -25,7 +25,7 @@ class SessionListItem(QFrame):
 
     def _setup_ui(self) -> None:
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(12, 10, 12, 10)
+        self._layout.setContentsMargins(12, 8, 12, 8)
         self._layout.setSpacing(10)
 
         # Status dot
@@ -40,11 +40,11 @@ class SessionListItem(QFrame):
         self._middle_layout.setSpacing(2)
 
         self._name_label = QLabel(self._session.name)
-        self._name_label.setStyleSheet("font-size: 14px; color: #eeeeee; font-weight: 500;")
+        self._name_label.setStyleSheet("font-size: 13px; color: #ffffff; font-weight: 500;")
         self._middle_layout.addWidget(self._name_label)
 
         self._desc_label = QLabel("")
-        self._desc_label.setStyleSheet("font-size: 11px; color: #888888;")
+        self._desc_label.setStyleSheet("font-size: 11px; color: #8e8e93;")
         self._desc_label.setWordWrap(True)
         self._middle_layout.addWidget(self._desc_label)
         self._refresh_desc()
@@ -66,38 +66,38 @@ class SessionListItem(QFrame):
 
     def _setup_style(self) -> None:
         self.setStyleSheet("""
-            SessionListItem {
-                background-color: rgba(255, 255, 255, 0.03);
+            QFrame {
+                background-color: #1c1c1e;
                 border-radius: 10px;
                 border: none;
             }
-            SessionListItem:hover {
-                background-color: rgba(255, 255, 255, 0.08);
+            QFrame:hover {
+                background-color: #2c2c2e;
             }
         """)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumWidth(340)
-        self.setMinimumHeight(58)
+        self.setMinimumHeight(48)
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
         self._colors = colors
         key = self._STATUS_KEYS.get(self._session.status, "status_needs_attention")
-        color = colors.get(key, colors.get("secondary_text", "#888888"))
+        color = colors.get(key, colors.get("secondary_text", "#8e8e93"))
         self._dot.setStyleSheet(f"color: {color}; font-size: 10px;")
         self._name_label.setStyleSheet(
-            f"font-size: 14px; color: {colors['primary_text']}; font-weight: 500;"
+            f"font-size: 13px; color: {colors['primary_text']}; font-weight: 500;"
         )
         self._desc_label.setStyleSheet(
             f"font-size: 11px; color: {colors['secondary_text']};"
         )
         self._tags_label.setText(self._build_tags(colors))
         self.setStyleSheet(
-            f"SessionListItem {{"
+            f"QFrame {{"
             f"  background-color: {colors['card_bg']};"
             f"  border-radius: 10px;"
             f"  border: none;"
             f"}}"
-            f"SessionListItem:hover {{"
+            f"QFrame:hover {{"
             f"  background-color: {colors['card_bg_hover']};"
             f"}}"
         )
@@ -112,24 +112,18 @@ class SessionListItem(QFrame):
     def _build_tags(self, colors: dict[str, str] | None = None) -> str:
         if colors is None:
             colors = self._colors if self._colors else {}
-        tag_color = colors.get("secondary_text", "#aaaaaa")
-        time_color = colors.get("secondary_text", "#666666")
+        tag_color = colors.get("secondary_text", "#8e8e93")
+        time_color = colors.get("muted_text", "#636366")
+        tag_bg = colors.get("control_bg", "#2c2c2e")
         return f"""
-            <span style="background-color: rgba(255,255,255,0.08);
+            <span style="background-color: {tag_bg};
                          color: {tag_color};
                          border-radius: 4px;
                          padding: 2px 6px;
-                         font-size: 11px;">
+                         font-size: 10px;">
                 {self._session.agent}
             </span>
-            <span style="background-color: rgba(255,255,255,0.08);
-                         color: {tag_color};
-                         border-radius: 4px;
-                         padding: 2px 6px;
-                         font-size: 11px;">
-                {self._session.terminal}
-            </span>
-            <span style="color: {time_color}; font-size: 11px; margin-left: 4px;">
+            <span style="color: {time_color}; font-size: 10px; margin-left: 4px;">
                 {self._session.duration_text()}
             </span>
         """
@@ -155,6 +149,6 @@ class SessionListItem(QFrame):
         if self._colors:
             self.refresh_theme(self._colors)
         else:
-            self._dot.setStyleSheet("color: #888888; font-size: 10px;")
+            self._dot.setStyleSheet("color: #8e8e93; font-size: 10px;")
             self._tags_label.setText(self._build_tags())
             self._refresh_desc()

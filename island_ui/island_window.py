@@ -1,8 +1,8 @@
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QVariantAnimation
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication,
+    QWidget, QVBoxLayout, QApplication, QGraphicsDropShadowEffect,
 )
 from PySide6.QtGui import QKeySequence, QShortcut, QColor
 
@@ -60,7 +60,7 @@ class IslandWindow(QWidget):
 
     def _setup_ui(self) -> None:
         palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor("#151519"))
+        palette.setColor(self.backgroundRole(), QColor("#000000"))
         self.setPalette(palette)
         self.setAutoFillBackground(True)
 
@@ -83,6 +83,21 @@ class IslandWindow(QWidget):
         self._leave_timer = QTimer(self)
         self._leave_timer.setSingleShot(True)
         self._leave_timer.timeout.connect(self._on_delayed_leave)
+
+        self._panel_anim: Optional[QVariantAnimation] = None
+        self._setup_shadows()
+
+    def _setup_shadows(self) -> None:
+        """为 pill 和 panel 添加柔和阴影，增强悬浮感."""
+        for widget, radius, offset in (
+            (self._pill, 20, 6),
+            (self._panel, 24, 8),
+        ):
+            effect = QGraphicsDropShadowEffect(self)
+            effect.setBlurRadius(radius)
+            effect.setColor(QColor(0, 0, 0, 100))
+            effect.setOffset(0, offset)
+            widget.setGraphicsEffect(effect)
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
@@ -395,24 +410,42 @@ class IslandWindow(QWidget):
             self._resize_to_content()
             return
 
-        # 先解除 minimumHeight 约束，否则 maximumHeight 无法低于它
-        self._panel.setMinimumHeight(0)
-        self._panel.setMaximumHeight(self._panel.height())
+        # 停止可能正在运行的旧动画
+        if self._panel_anim is not None:
+            self._panel_anim.stop()
+            self._panel_anim.deleteLater()
+            self._panel_anim = None
 
-        anim = QPropertyAnimation(self._panel, b"maximumHeight", self)
-        anim.setDuration(180)
-        anim.setStartValue(self._panel.height())
+        # 解除固定高度约束，让逐帧 setFixedHeight 能生效
+        self._panel.setMinimumHeight(0)
+        self._panel.setMaximumHeight(self._panel.maximumSize().height())
+
+        start_height = self._panel.height()
+        anim = QVariantAnimation(self)
+        self._panel_anim = anim
+        # Dynamic Island 风格：展开慢且顺滑，收起稍快
+        expanding = target_height > start_height
+        anim.setDuration(280 if expanding else 200)
+        anim.setEasingCurve(
+            QEasingCurve.Type.OutCubic if expanding else QEasingCurve.Type.InCubic
+        )
+        anim.setStartValue(start_height)
         anim.setEndValue(target_height)
-        anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+
+        def _on_value_changed(value):
+            self._panel.setFixedHeight(int(value))
+            self._resize_to_content()
 
         def _on_anim_finished():
+            if self._panel_anim is not anim:
+                return
             self._panel.setFixedHeight(target_height)
-            if target_height > 0:
-                self._panel.setMinimumHeight(target_height)
+            self._panel_anim = None
             self._resize_to_content()
             if on_finished:
                 on_finished()
 
+        anim.valueChanged.connect(_on_value_changed)
         anim.finished.connect(_on_anim_finished)
         anim.start()
 
