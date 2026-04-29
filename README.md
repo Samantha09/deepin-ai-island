@@ -87,10 +87,22 @@ python tests/test_state_machine.py
 - **IPC**: Unix Socket JSON（第二阶段）
 - **配置**: YAML
 
+## 特性
+
+- **Dynamic Island 风格动画** — 平滑的展开/收起高度与宽度动画，仿 macOS 灵动岛交互体验
+- **会话列表与详情视图** — 实时监控多个 AI Agent 会话，点击进入详情查看完整事件流
+- **权限审批** — 在悬浮面板内直接 Allow / Deny 权限请求，支持快捷键 (Ctrl+Y / Ctrl+N)
+- **主题系统** — 内置暗色主题，支持通过设置抽屉实时切换与自定义
+- **设置抽屉** — 点击胶囊上的 ⋯ 按钮展开配置面板，调整窗口偏移、超时时间等参数
+- **轮询兜底机制** — 针对部分 Linux 桌面环境 leaveEvent 不可靠的问题，使用定时轮询确保悬停状态准确
+
 ## 第二阶段预览
 
 - Island Daemon 进程（asyncio Unix Socket）
 - Claude Code Hook Adapter
 - Plan Review（Markdown 渲染）
-- 多 Session 同时监控
 - 其他 Agent 支持（Codex、Gemini CLI）
+
+## License
+
+本项目采用 [MIT](LICENSE) 许可证开源。
