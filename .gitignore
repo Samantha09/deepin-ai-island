@@ -41,3 +41,4 @@ Thumbs.db
 
 # Config overrides (user-specific)
 config/user.yaml
+.worktrees/
