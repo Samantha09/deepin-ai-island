@@ -2,6 +2,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QVBoxLayout, QPushButton, QLineEdit, QWidget
 
 from island_ui.cards.base_card import EventCard
+from island_ui.components.styled_button import StyledButton
 from island_ui.events import QuestionAsked, QuestionAnswered
 
 
@@ -12,6 +13,7 @@ class QuestionCard(EventCard):
         super().__init__(event, parent)
         question = event.payload.get("question", "")
         options = event.payload.get("options")
+        self._colors: dict[str, str] = {}
 
         self.set_content("Claude asks", question)
 
@@ -21,23 +23,10 @@ class QuestionCard(EventCard):
             self._setup_text_input()
 
     def _setup_options(self, options: list) -> None:
-        self._option_buttons: list[QPushButton] = []
+        self._option_buttons: list[StyledButton] = []
         for opt in options:
-            btn = QPushButton(str(opt))
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(255, 255, 255, 0.08);
-                    color: #eeeeee;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 14px;
-                    font-size: 13px;
-                    text-align: left;
-                }
-                QPushButton:hover {
-                    background-color: rgba(255, 255, 255, 0.15);
-                }
-            """)
+            btn = StyledButton(str(opt), variant="secondary")
+            btn.setStyleSheet(btn.styleSheet().replace("text-align: center;", "text-align: left;"))
             btn.clicked.connect(lambda checked, o=opt: self._on_option_selected(o))
             self._layout.addWidget(btn)
             self._option_buttons.append(btn)
@@ -58,52 +47,35 @@ class QuestionCard(EventCard):
         """)
         input_layout.addWidget(self._input)
 
-        self._submit_btn = QPushButton("Submit")
-        self._submit_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: #ffffff;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
+        self._submit_btn = StyledButton("Submit", variant="primary")
         self._submit_btn.clicked.connect(self._on_text_submitted)
         input_layout.addWidget(self._submit_btn)
 
         self._layout.addLayout(input_layout)
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
+        self._colors = colors
         primary = colors.get("primary_text", "#eeeeee")
-        accent = colors.get("accent_info", "#2196F3")
-        accent_hover = colors.get("status_running", "#1976D2")
+        accent = colors.get("accent_blue", "#6699ff")
+        accent_hover = colors.get("accent_blue", "#6699ff")
+        control_bg = colors.get("control_bg", "rgba(255,255,255,0.06)")
+        border = colors.get("border", "rgba(255,255,255,0.08)")
+
+        super().refresh_theme(colors)
 
         for btn in getattr(self, "_option_buttons", []):
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: rgba(255, 255, 255, 0.08);
-                    color: {primary};
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 14px;
-                    font-size: 13px;
-                    text-align: left;
-                }}
-                QPushButton:hover {{
-                    background-color: rgba(255, 255, 255, 0.15);
-                }}
-            """)
+            btn.refresh_theme(colors)
+            # 保持左对齐
+            ss = btn.styleSheet()
+            if "text-align: left;" not in ss:
+                btn.setStyleSheet(ss.replace("text-align: center;", "text-align: left;"))
 
         if hasattr(self, "_input"):
             self._input.setStyleSheet(f"""
                 QLineEdit {{
-                    background-color: rgba(255, 255, 255, 0.08);
+                    background-color: {control_bg};
                     color: {primary};
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border: 1px solid {border};
                     border-radius: 8px;
                     padding: 8px 12px;
                     font-size: 13px;
@@ -112,15 +84,15 @@ class QuestionCard(EventCard):
 
         if hasattr(self, "_submit_btn"):
             self._submit_btn.setStyleSheet(f"""
-                QPushButton {{
+                StyledButton {{
                     background-color: {accent};
-                    color: {colors.get('primary_text', '#ffffff')};
+                    color: {colors.get('inverse_text', '#000000')};
                     border: none;
                     border-radius: 8px;
                     padding: 8px 16px;
                     font-size: 13px;
                 }}
-                QPushButton:hover {{
+                StyledButton:hover {{
                     background-color: {accent_hover};
                 }}
             """)

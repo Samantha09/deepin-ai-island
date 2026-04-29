@@ -18,7 +18,6 @@ class ExpandedPanel(QWidget):
         self._session_items: dict[str, SessionListItem] = {}
         self._current_session_id: str = ""
         self._setup_ui()
-        self._setup_style()
 
     def _setup_ui(self) -> None:
         self._layout = QVBoxLayout(self)
@@ -27,7 +26,6 @@ class ExpandedPanel(QWidget):
 
         # ── Session List View ──
         self._session_list_widget = QWidget()
-        self._session_list_widget.setStyleSheet("background-color: #1e1e23;")
         self._session_list_layout = QVBoxLayout(self._session_list_widget)
         self._session_list_layout.setContentsMargins(12, 12, 12, 12)
         self._session_list_layout.setSpacing(12)
@@ -40,11 +38,9 @@ class ExpandedPanel(QWidget):
         self._session_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._session_scroll.setWidget(self._session_list_widget)
         self._session_scroll.setMinimumHeight(200)
-        self._session_scroll.viewport().setStyleSheet("background-color: #1e1e23;")
 
         # ── Event Detail View ──
         self._detail_widget = QWidget()
-        self._detail_widget.setStyleSheet("background-color: #1e1e23;")
         self._detail_layout = QVBoxLayout(self._detail_widget)
         self._detail_layout.setContentsMargins(12, 12, 12, 12)
         self._detail_layout.setSpacing(10)
@@ -53,15 +49,10 @@ class ExpandedPanel(QWidget):
         self._back_btn = QPushButton("←  Back")
         self._back_btn.setStyleSheet("""
             QPushButton {
-                background-color: transparent;
-                color: #888888;
                 border: none;
                 font-size: 13px;
                 padding: 4px;
                 text-align: left;
-            }
-            QPushButton:hover {
-                color: #eeeeee;
             }
         """)
         self._back_btn.clicked.connect(self._on_back)
@@ -72,7 +63,6 @@ class ExpandedPanel(QWidget):
         self._detail_layout.addWidget(self._detail_title)
 
         self._cards_container = QWidget()
-        self._cards_container.setStyleSheet("background-color: #1e1e23;")
         self._cards_layout = QVBoxLayout(self._cards_container)
         self._cards_layout.setContentsMargins(0, 0, 0, 0)
         self._cards_layout.setSpacing(10)
@@ -86,42 +76,12 @@ class ExpandedPanel(QWidget):
         self._detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._detail_scroll.setWidget(self._detail_widget)
         self._detail_scroll.setMinimumHeight(200)
-        self._detail_scroll.viewport().setStyleSheet("background-color: #1e1e23;")
 
         # Add both to main layout, only one visible at a time
         self._layout.addWidget(self._session_scroll)
         self._layout.addWidget(self._detail_scroll)
 
         self._show_view("list")
-
-    def _setup_style(self) -> None:
-        self.setStyleSheet("""
-            ExpandedPanel {
-                background-color: #1e1e23;
-                border-radius: 16px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-            }
-            QScrollArea {
-                background: transparent;
-                border: none;
-            }
-            QScrollArea::viewport {
-                background-color: #1e1e23;
-            }
-            QScrollBar:vertical {
-                background: transparent;
-                width: 6px;
-                margin: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: rgba(255, 255, 255, 0.15);
-                border-radius: 3px;
-                min-height: 30px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-        """)
 
     def _show_view(self, view: str) -> None:
         if view == "list":

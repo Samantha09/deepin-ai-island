@@ -2,6 +2,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget, QLabel, QVBoxLayout
 
 from island_ui.cards.base_card import EventCard
+from island_ui.components.styled_button import StyledButton
 from island_ui.events import PermissionRequested, PermissionResolved
 
 
@@ -17,13 +18,14 @@ class PermissionCard(EventCard):
 
         # 提取 tool_use_id，用于 socket 回传决策
         self._tool_use_id = event.payload.get("tool_use_id", "")
+        self._colors: dict[str, str] = {}
 
         # Header: amber dot + title + source badge
         header_layout = QHBoxLayout()
         header_layout.setSpacing(8)
 
         self._dot = QLabel("●")
-        self._dot.setStyleSheet("color: #FF9800; font-size: 10px;")
+        self._dot.setStyleSheet("font-size: 10px;")
         header_layout.addWidget(self._dot)
 
         self._title = QLabel("Permission Request")
@@ -67,70 +69,27 @@ class PermissionCard(EventCard):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
-        self._chat_btn = QPushButton("Open Chat")
-        self._chat_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.08);
-                color: #eeeeee;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 12px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.15);
-            }
-        """)
+        self._chat_btn = StyledButton("Open Chat", variant="ghost")
         self._chat_btn.clicked.connect(self._on_open_chat)
         btn_layout.addWidget(self._chat_btn)
 
         btn_layout.addStretch()
 
-        self._deny_btn = QPushButton("Deny")
-        self._deny_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: #eeeeee;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 14px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.2);
-            }
-        """)
+        self._deny_btn = StyledButton("Deny", variant="secondary")
         self._deny_btn.clicked.connect(self._on_deny)
         btn_layout.addWidget(self._deny_btn)
 
-        self._allow_btn = QPushButton("Allow")
-        self._allow_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.92);
-                color: #000000;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 14px;
-                font-size: 12px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #ffffff;
-            }
-        """)
+        self._allow_btn = StyledButton("Allow", variant="primary")
         self._allow_btn.clicked.connect(self._on_allow)
         btn_layout.addWidget(self._allow_btn)
 
         self._layout.addLayout(btn_layout)
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
-        accent = colors.get("accent_info", "#FF9800")
+        self._colors = colors
+        accent = colors.get("accent_amber", "#ffb300")
         primary = colors.get("primary_text", "#eeeeee")
         secondary = colors.get("secondary_text", "#eeeeee")
-        allow_bg = colors.get("accent_allow", "#ffffff")
-        allow_fg = colors.get("panel_bg", "#000000")
-        deny_bg = colors.get("accent_deny", "rgba(255,255,255,0.1)")
-        deny_fg = colors.get("primary_text", "#eeeeee")
 
         self._dot.setStyleSheet(f"color: {accent}; font-size: 10px;")
         self._title.setStyleSheet(
@@ -154,46 +113,23 @@ class PermissionCard(EventCard):
         """)
         if hasattr(self, "_input_label"):
             self._input_label.setStyleSheet(
-                f"font-size: 11px; color: {secondary}80;"
+                f"font-size: 11px; color: {secondary};"
             )
-        self._chat_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgba(255, 255, 255, 0.08);
-                color: {secondary};
-                border: none;
-                border-radius: 8px;
-                padding: 8px 12px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255, 255, 255, 0.15);
-            }}
-        """)
-        self._deny_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {deny_bg};
-                color: {deny_fg};
-                border: none;
-                border-radius: 8px;
-                padding: 8px 14px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255, 255, 255, 0.2);
-            }}
-        """)
+        self._chat_btn.refresh_theme(colors)
+        self._deny_btn.refresh_theme(colors)
+        # Allow 按钮保持白底黑字的高对比度
         self._allow_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {allow_bg};
-                color: {allow_fg};
+            StyledButton {{
+                background-color: {colors.get('primary_text', '#ffffff')};
+                color: {colors.get('surface', '#000000')};
                 border: none;
                 border-radius: 8px;
                 padding: 8px 14px;
                 font-size: 12px;
                 font-weight: 600;
             }}
-            QPushButton:hover {{
-                background-color: {colors.get('primary_text', '#ffffff')};
+            StyledButton:hover {{
+                background-color: {colors.get('secondary_text', '#cccccc')};
             }}
         """)
 

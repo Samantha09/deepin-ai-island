@@ -11,7 +11,7 @@ class CompactPill(QFrame):
         self._count = 0
         self._agents: list[str] = []
         self._setup_ui()
-        self._setup_style()
+        self._colors: dict[str, str] = {}
 
     def _setup_ui(self) -> None:
         self._layout = QHBoxLayout(self)
@@ -20,29 +20,25 @@ class CompactPill(QFrame):
 
         # Pending permission indicator (amber dot)
         self._pending_indicator = QLabel("●")
-        self._pending_indicator.setStyleSheet("color: #FF9800; font-size: 10px;")
+        self._pending_indicator.setStyleSheet("font-size: 10px;")
         self._pending_indicator.setVisible(False)
         self._layout.addWidget(self._pending_indicator)
 
         self._count_label = QLabel("0 requests")
-        self._count_label.setStyleSheet("font-size: 13px; color: #eeeeee; font-weight: 500;")
+        self._count_label.setStyleSheet("font-size: 13px; font-weight: 500;")
         self._layout.addWidget(self._count_label)
 
         self._agents_label = QLabel("")
-        self._agents_label.setStyleSheet("font-size: 11px; color: #888888;")
+        self._agents_label.setStyleSheet("font-size: 11px;")
         self._layout.addWidget(self._agents_label)
 
         self._settings_btn = QPushButton("⚙")
         self._settings_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
-                color: #888888;
                 font-size: 14px;
                 border: none;
                 padding: 0 4px;
-            }
-            QPushButton:hover {
-                color: #eeeeee;
             }
         """)
         self._settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -51,14 +47,39 @@ class CompactPill(QFrame):
 
         self._layout.addStretch()
 
-    def _setup_style(self) -> None:
-        self.setStyleSheet("""
-            CompactPill {
-                background-color: #1e1e23;
+    def refresh_theme(self, colors: dict[str, str]) -> None:
+        """Apply theme colors to pill and child widgets."""
+        self._colors = colors
+        self.setStyleSheet(f"""
+            CompactPill {{
+                background-color: {colors['panel_bg']};
                 border-radius: 20px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-            }
+                border: 1px solid {colors['border']};
+            }}
         """)
+        self._pending_indicator.setStyleSheet(
+            f"color: {colors['accent_amber']}; font-size: 10px;"
+        )
+        self._count_label.setStyleSheet(
+            f"font-size: 13px; color: {colors['primary_text']}; font-weight: 500;"
+        )
+        self._agents_label.setStyleSheet(
+            f"font-size: 11px; color: {colors['secondary_text']};"
+        )
+        self._settings_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {colors['secondary_text']};
+                font-size: 14px;
+                border: none;
+                padding: 0 4px;
+            }}
+            QPushButton:hover {{
+                color: {colors['primary_text']};
+            }}
+        """)
+
+    def _setup_style(self) -> None:
         self.setMinimumWidth(180)
         self.setMaximumWidth(400)
         self.setCursor(Qt.CursorShape.PointingHandCursor)

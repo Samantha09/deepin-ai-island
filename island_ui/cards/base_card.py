@@ -12,6 +12,7 @@ class EventCard(QFrame):
         super().__init__(parent)
         self._event = event
         self._resolved = False
+        self._colors: dict[str, str] = {}
         self._setup_style()
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(14, 14, 14, 14)
@@ -30,14 +31,14 @@ class EventCard(QFrame):
         self.setMinimumWidth(320)
 
     def set_content(self, title: str, body: str) -> None:
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 11px; color: #888888;")
-        self._layout.addWidget(title_label)
+        self._title_label = QLabel(title)
+        self._title_label.setStyleSheet("font-size: 11px; color: #888888;")
+        self._layout.addWidget(self._title_label)
 
-        body_label = QLabel(body)
-        body_label.setStyleSheet("font-size: 13px; color: #eeeeee;")
-        body_label.setWordWrap(True)
-        self._layout.addWidget(body_label)
+        self._body_label = QLabel(body)
+        self._body_label.setStyleSheet("font-size: 13px; color: #eeeeee;")
+        self._body_label.setWordWrap(True)
+        self._layout.addWidget(self._body_label)
 
     def event_data(self) -> Event:
         return self._event
@@ -58,7 +59,23 @@ class EventCard(QFrame):
         self.resolved.emit(self)
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
-        pass
+        """Apply theme colors to card."""
+        self._colors = colors
+        self.setStyleSheet(
+            f"EventCard {{"
+            f"  background-color: {colors['card_bg']};"
+            f"  border-radius: 14px;"
+            f"  border: none;"
+            f"}}"
+        )
+        if hasattr(self, "_title_label"):
+            self._title_label.setStyleSheet(
+                f"font-size: 11px; color: {colors['secondary_text']};"
+            )
+        if hasattr(self, "_body_label"):
+            self._body_label.setStyleSheet(
+                f"font-size: 13px; color: {colors['primary_text']};"
+            )
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

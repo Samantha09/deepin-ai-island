@@ -19,6 +19,7 @@ class SessionListItem(QFrame):
     def __init__(self, session: Session, parent: QWidget = None):
         super().__init__(parent)
         self._session = session
+        self._colors: dict[str, str] = {}
         self._setup_ui()
         self._setup_style()
 
@@ -29,7 +30,7 @@ class SessionListItem(QFrame):
 
         # Status dot
         self._dot = QLabel("●")
-        self._dot.setStyleSheet("color: #888888; font-size: 10px;")
+        self._dot.setStyleSheet("font-size: 10px;")
         self._layout.addWidget(self._dot)
 
         # Middle: name + description
@@ -79,8 +80,9 @@ class SessionListItem(QFrame):
         self.setMinimumHeight(58)
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
+        self._colors = colors
         key = self._STATUS_KEYS.get(self._session.status, "status_needs_attention")
-        color = colors.get(key, "#888888")
+        color = colors.get(key, colors.get("secondary_text", "#888888"))
         self._dot.setStyleSheet(f"color: {color}; font-size: 10px;")
         self._name_label.setStyleSheet(
             f"font-size: 14px; color: {colors['primary_text']}; font-weight: 500;"
@@ -89,6 +91,16 @@ class SessionListItem(QFrame):
             f"font-size: 11px; color: {colors['secondary_text']};"
         )
         self._tags_label.setText(self._build_tags(colors))
+        self.setStyleSheet(
+            f"SessionListItem {{"
+            f"  background-color: {colors['card_bg']};"
+            f"  border-radius: 10px;"
+            f"  border: none;"
+            f"}}"
+            f"SessionListItem:hover {{"
+            f"  background-color: {colors['card_bg_hover']};"
+            f"}}"
+        )
 
     def mousePressEvent(self, event) -> None:
         self.clicked.emit(self._session.id)
@@ -99,7 +111,7 @@ class SessionListItem(QFrame):
 
     def _build_tags(self, colors: dict[str, str] | None = None) -> str:
         if colors is None:
-            colors = {}
+            colors = self._colors if self._colors else {}
         tag_color = colors.get("secondary_text", "#aaaaaa")
         time_color = colors.get("secondary_text", "#666666")
         return f"""
@@ -140,8 +152,9 @@ class SessionListItem(QFrame):
 
     def update_status(self) -> None:
         """Refresh dot color and tags from current session state."""
-        key = self._STATUS_KEYS.get(self._session.status, "status_needs_attention")
-        # Fallback for callers without colors dict; keep raw hex for now
-        self._dot.setStyleSheet("color: #888888; font-size: 10px;")
-        self._tags_label.setText(self._build_tags())
-        self._refresh_desc()
+        if self._colors:
+            self.refresh_theme(self._colors)
+        else:
+            self._dot.setStyleSheet("color: #888888; font-size: 10px;")
+            self._tags_label.setText(self._build_tags())
+            self._refresh_desc()

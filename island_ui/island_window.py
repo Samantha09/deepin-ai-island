@@ -40,8 +40,8 @@ class IslandWindow(QWidget):
 
         self._config = ConfigManager(config_path="config/default.yaml")
         self._theme = Theme()
-        self._apply_theme()
         self._setup_drawer()
+        self._apply_theme()
         self._config.config_changed.connect(self._on_config_changed)
 
     def _setup_window(self) -> None:
@@ -278,7 +278,7 @@ class IslandWindow(QWidget):
 
     def leaveEvent(self, event) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
-            self._leave_timer.start(400)
+            self._leave_timer.start(800)
         super().leaveEvent(event)
 
     def _on_delayed_leave(self) -> None:
@@ -335,26 +335,10 @@ class IslandWindow(QWidget):
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor(colors["window_bg"]))
         self.setPalette(palette)
-        self._pill.setStyleSheet(f"""
-            CompactPill {{
-                background-color: {colors['panel_bg']};
-                border-radius: 20px;
-                border: 1px solid {colors['border']};
-            }}
-        """)
+        self._pill.refresh_theme(colors)
         self._panel.refresh_theme(colors)
         if hasattr(self, "_drawer"):
-            self._drawer.refresh_theme({
-                "panel_bg": colors["panel_bg"],
-                "control_bg": colors.get("card_bg", colors["panel_bg"]),
-                "control_border": colors["border"],
-                "primary_text": colors["primary_text"],
-                "selection_bg": colors.get("secondary_text", "#4a4a50"),
-                "accent": colors.get("accent_info", "#2196F3"),
-                "label_text": colors["muted_text"],
-                "title_text": colors["primary_text"],
-                "hover_bg": colors.get("secondary_text", "#3a3a40"),
-            })
+            self._drawer.refresh_theme(colors)
 
     def _reposition_window(self) -> None:
         screen = QApplication.primaryScreen().availableGeometry()

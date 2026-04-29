@@ -15,7 +15,7 @@ def test_drawer_has_all_controls():
     drawer = SettingsDrawer(cm)
 
     assert drawer._theme_combo is not None
-    assert drawer._anim_check is not None
+    assert drawer._anim_row is not None
     assert drawer._timeout_spin is not None
     assert drawer._pos_x_spin is not None
     assert drawer._pos_y_spin is not None
@@ -38,7 +38,7 @@ def test_theme_change_emits_signal():
     assert ("theme.id", "light") in received
 
 
-def test_reset_button_restores_defaults():
+def test_reset_row_restores_defaults():
     """Clicking Reset defaults restores animation_enabled to True."""
     app = QApplication.instance() or QApplication(sys.argv)
     cm = ConfigManager(config_path=None)
@@ -47,9 +47,10 @@ def test_reset_button_restores_defaults():
     cm.set("island.animation_enabled", False)
     drawer._load_from_config()
 
-    assert drawer._anim_check.isChecked() is False
+    assert drawer._anim_row.is_on() is False
 
-    drawer._reset_button.click()
+    # 模拟点击 Reset 行
+    drawer._on_reset()
 
     assert cm.get("island.animation_enabled") is True
-    assert drawer._anim_check.isChecked() is True
+    assert drawer._anim_row.is_on() is True
