@@ -55,6 +55,8 @@ class IslandWindow(QWidget):
 
         screen = QApplication.primaryScreen().availableGeometry()
         self._max_panel_height = int(screen.height() * 0.6)
+        self._screen = screen
+        # 初始位置先按 400px 居中，后续 _resize_to_content 会重新校正
         x = screen.x() + (screen.width() - 400) // 2
         self.move(x, screen.y() + 12)
 
@@ -77,7 +79,7 @@ class IslandWindow(QWidget):
         self._panel.setFixedHeight(0)
         self._layout.addWidget(self._panel)
 
-        self.setFixedWidth(400)
+        self.setMinimumWidth(200)
         self.setMinimumHeight(48)
 
         self._leave_timer = QTimer(self)
@@ -85,6 +87,11 @@ class IslandWindow(QWidget):
         self._leave_timer.timeout.connect(self._on_delayed_leave)
 
         self._panel_anim: Optional[QVariantAnimation] = None
+
+        # 部分 Linux 桌面环境下 leaveEvent 不可靠，用轮询兜底
+        self._hover_timer = QTimer(self)
+        self._hover_timer.timeout.connect(self._check_hover)
+        self._hover_timer.start(50)
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
@@ -283,12 +290,28 @@ class IslandWindow(QWidget):
 
     def leaveEvent(self, event) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
-            self._leave_timer.start(300)
+            self._state_machine.on_collapse_requested()
         super().leaveEvent(event)
 
     def _on_delayed_leave(self) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
             self._state_machine.on_collapse_requested()
+
+    def _check_hover(self) -> None:
+        """50ms 轮询鼠标是否在窗口内，作为 leaveEvent/enterEvent 的兜底."""
+        if self.underMouse():
+            self._leave_timer.stop()
+            if self._state_machine.state() == IslandState.COMPACT:
+                self._state_machine.on_expand_requested()
+        else:
+            if self._state_machine.state() == IslandState.EXPANDED:
+                self._state_machine.on_collapse_requested()
+
+    def _recenter_window(self) -> None:
+        """根据当前窗口宽度重新水平居中."""
+        x = self._screen.x() + (self._screen.width() - self.width()) // 2
+        x += self._config.get("island.position_offset_x", 0)
+        self.move(x, self.y())
 
     # ------------------------------------------------------------------
     # Drawer / Theme / Config
@@ -445,7 +468,10 @@ class IslandWindow(QWidget):
     def _resize_to_content(self) -> None:
         self._layout.invalidate()
         self._layout.activate()
+        old_width = self.width()
         self.adjustSize()
+        if self.width() != old_width:
+            self._recenter_window()
 
     # ------------------------------------------------------------------
     # Shortcuts helpers
