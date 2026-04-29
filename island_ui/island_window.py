@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QVarian
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QApplication,
 )
-from PySide6.QtGui import QKeySequence, QShortcut, QColor
+from PySide6.QtGui import QKeySequence, QShortcut, QColor, QCursor
 
 from island_ui.compact_pill import CompactPill
 from island_ui.expanded_panel import ExpandedPanel
@@ -289,8 +289,8 @@ class IslandWindow(QWidget):
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
-        if self._state_machine.state() == IslandState.EXPANDED:
-            self._state_machine.on_collapse_requested()
+        if self._state_machine.state() == IslandState.EXPANDED and not self._leave_timer.isActive():
+            self._leave_timer.start(1000)
         super().leaveEvent(event)
 
     def _on_delayed_leave(self) -> None:
@@ -299,13 +299,15 @@ class IslandWindow(QWidget):
 
     def _check_hover(self) -> None:
         """50ms 轮询鼠标是否在窗口内，作为 leaveEvent/enterEvent 的兜底."""
-        if self.underMouse():
+        widget = QApplication.widgetAt(QCursor.pos())
+        inside = widget is not None and (widget is self or self.isAncestorOf(widget))
+        if inside:
             self._leave_timer.stop()
             if self._state_machine.state() == IslandState.COMPACT:
                 self._state_machine.on_expand_requested()
         else:
-            if self._state_machine.state() == IslandState.EXPANDED:
-                self._state_machine.on_collapse_requested()
+            if self._state_machine.state() == IslandState.EXPANDED and not self._leave_timer.isActive():
+                self._leave_timer.start(1000)
 
     def _recenter_window(self) -> None:
         """根据当前窗口宽度重新水平居中."""
@@ -432,10 +434,6 @@ class IslandWindow(QWidget):
             self._panel_anim.deleteLater()
             self._panel_anim = None
 
-        # 动画期间固定窗口宽度，避免 detail/list 切换时 adjustSize 导致宽度跳动
-        current_width = self.width()
-        self.setFixedWidth(current_width)
-
         # 解除固定高度约束，让逐帧 setFixedHeight 能生效
         self._panel.setMinimumHeight(0)
         self._panel.setMaximumHeight(self._panel.maximumSize().height())
@@ -461,12 +459,9 @@ class IslandWindow(QWidget):
                 return
             self._panel.setFixedHeight(target_height)
             self._panel_anim = None
-            # 恢复宽度自适应
-            self.setMinimumWidth(200)
-            self.setMaximumWidth(16777215)
-            self._resize_to_content()
             if on_finished:
                 on_finished()
+            self._resize_to_content()
 
         anim.valueChanged.connect(_on_value_changed)
         anim.finished.connect(_on_anim_finished)

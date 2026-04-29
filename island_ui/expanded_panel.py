@@ -101,10 +101,12 @@ class ExpandedPanel(QWidget):
     def show_event_detail(self, session_id: str, session_name: str) -> None:
         self._current_session_id = session_id
         self._detail_title.setText(session_name)
-        # Clear previous cards
-        for i in reversed(range(self._cards_layout.count() - 1)):
-            widget = self._cards_layout.itemAt(i).widget()
+        # 立即从布局中移除旧卡片，避免 deleteLater 异步删除期间参与 sizeHint 计算
+        while self._cards_layout.count() > 1:
+            item = self._cards_layout.takeAt(0)
+            widget = item.widget()
             if widget:
+                widget.setParent(None)
                 widget.deleteLater()
         self._cards.clear()
         self._show_view("detail")
@@ -154,9 +156,11 @@ class ExpandedPanel(QWidget):
 
     def clear_cards(self) -> None:
         """清理所有事件卡片。"""
-        for i in reversed(range(self._cards_layout.count() - 1)):
-            widget = self._cards_layout.itemAt(i).widget()
+        while self._cards_layout.count() > 1:
+            item = self._cards_layout.takeAt(0)
+            widget = item.widget()
             if widget:
+                widget.setParent(None)
                 widget.deleteLater()
         self._cards.clear()
 
