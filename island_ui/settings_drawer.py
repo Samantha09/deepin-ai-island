@@ -32,18 +32,6 @@ class SettingsDrawer(QWidget):
         super().__init__(parent)
         self._config = config
 
-        self.refresh_theme({
-            "panel_bg": "#1e1e23",
-            "control_bg": "#2a2a30",
-            "control_border": "#3a3a40",
-            "primary_text": "#e0e0e0",
-            "selection_bg": "#4a4a50",
-            "accent": "#4a90d9",
-            "label_text": "#c0c0c0",
-            "title_text": "#ffffff",
-            "hover_bg": "#3a3a40",
-        })
-
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 12, 16, 12)
         root.setSpacing(0)
@@ -59,6 +47,18 @@ class SettingsDrawer(QWidget):
         self._close_btn.clicked.connect(self.closed.emit)
         header.addWidget(self._close_btn)
         root.addLayout(header)
+
+        self.refresh_theme({
+            "panel_bg": "#1e1e23",
+            "control_bg": "#2a2a30",
+            "control_border": "#3a3a40",
+            "primary_text": "#e0e0e0",
+            "selection_bg": "#4a4a50",
+            "accent": "#4a90d9",
+            "label_text": "#c0c0c0",
+            "title_text": "#ffffff",
+            "hover_bg": "#3a3a40",
+        })
 
         root.addWidget(self._separator())
 
