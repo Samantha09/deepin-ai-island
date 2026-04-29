@@ -432,6 +432,10 @@ class IslandWindow(QWidget):
             self._panel_anim.deleteLater()
             self._panel_anim = None
 
+        # 动画期间固定窗口宽度，避免 detail/list 切换时 adjustSize 导致宽度跳动
+        current_width = self.width()
+        self.setFixedWidth(current_width)
+
         # 解除固定高度约束，让逐帧 setFixedHeight 能生效
         self._panel.setMinimumHeight(0)
         self._panel.setMaximumHeight(self._panel.maximumSize().height())
@@ -457,6 +461,9 @@ class IslandWindow(QWidget):
                 return
             self._panel.setFixedHeight(target_height)
             self._panel_anim = None
+            # 恢复宽度自适应
+            self.setMinimumWidth(200)
+            self.setMaximumWidth(16777215)
             self._resize_to_content()
             if on_finished:
                 on_finished()

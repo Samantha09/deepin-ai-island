@@ -24,6 +24,7 @@ class ExpandedPanel(QWidget):
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
+        self.setMinimumWidth(360)
 
         # ── Session List View ──
         self._session_list_widget = QWidget()
