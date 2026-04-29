@@ -1,9 +1,10 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 
 class CompactPill(QFrame):
     clicked = Signal()
+    settings_clicked = Signal()
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)
@@ -30,6 +31,23 @@ class CompactPill(QFrame):
         self._agents_label = QLabel("")
         self._agents_label.setStyleSheet("font-size: 11px; color: #888888;")
         self._layout.addWidget(self._agents_label)
+
+        self._settings_btn = QPushButton("⚙")
+        self._settings_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #888888;
+                font-size: 14px;
+                border: none;
+                padding: 0 4px;
+            }
+            QPushButton:hover {
+                color: #eeeeee;
+            }
+        """)
+        self._settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._settings_btn.clicked.connect(self.settings_clicked.emit)
+        self._layout.addWidget(self._settings_btn)
 
         self._layout.addStretch()
 

@@ -214,3 +214,68 @@ class ExpandedPanel(QWidget):
 
     def cards(self) -> list[EventCard]:
         return list(self._cards)
+
+    def refresh_theme(self, colors: dict[str, str]) -> None:
+        """Refresh panel and child widgets with the given color palette."""
+        self.setStyleSheet(f"""
+            ExpandedPanel {{
+                background-color: {colors['panel_bg']};
+                border-radius: 16px;
+                border: 1px solid {colors['border']};
+            }}
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea::viewport {{
+                background-color: {colors['panel_bg']};
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+                margin: 0px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba(255, 255, 255, 0.15);
+                border-radius: 3px;
+                min-height: 30px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
+        self._session_list_widget.setStyleSheet(
+            f"background-color: {colors['panel_bg']};"
+        )
+        self._detail_widget.setStyleSheet(
+            f"background-color: {colors['panel_bg']};"
+        )
+        self._cards_container.setStyleSheet(
+            f"background-color: {colors['panel_bg']};"
+        )
+        self._session_scroll.viewport().setStyleSheet(
+            f"background-color: {colors['panel_bg']};"
+        )
+        self._detail_scroll.viewport().setStyleSheet(
+            f"background-color: {colors['panel_bg']};"
+        )
+        self._detail_title.setStyleSheet(
+            f"font-size: 14px; color: {colors['primary_text']}; font-weight: 500;"
+        )
+        self._back_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {colors['secondary_text']};
+                border: none;
+                font-size: 13px;
+                padding: 4px;
+                text-align: left;
+            }}
+            QPushButton:hover {{
+                color: {colors['primary_text']};
+            }}
+        """)
+        for item in self._session_items.values():
+            item.refresh_theme(colors)
+        for card in self._cards:
+            card.refresh_theme(colors)

@@ -21,6 +21,7 @@ class QuestionCard(EventCard):
             self._setup_text_input()
 
     def _setup_options(self, options: list) -> None:
+        self._option_buttons: list[QPushButton] = []
         for opt in options:
             btn = QPushButton(str(opt))
             btn.setStyleSheet("""
@@ -39,6 +40,7 @@ class QuestionCard(EventCard):
             """)
             btn.clicked.connect(lambda checked, o=opt: self._on_option_selected(o))
             self._layout.addWidget(btn)
+            self._option_buttons.append(btn)
 
     def _setup_text_input(self) -> None:
         input_layout = QVBoxLayout()
@@ -56,8 +58,8 @@ class QuestionCard(EventCard):
         """)
         input_layout.addWidget(self._input)
 
-        submit_btn = QPushButton("Submit")
-        submit_btn.setStyleSheet("""
+        self._submit_btn = QPushButton("Submit")
+        self._submit_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;
                 color: #ffffff;
@@ -70,10 +72,58 @@ class QuestionCard(EventCard):
                 background-color: #1976D2;
             }
         """)
-        submit_btn.clicked.connect(self._on_text_submitted)
-        input_layout.addWidget(submit_btn)
+        self._submit_btn.clicked.connect(self._on_text_submitted)
+        input_layout.addWidget(self._submit_btn)
 
         self._layout.addLayout(input_layout)
+
+    def refresh_theme(self, colors: dict[str, str]) -> None:
+        primary = colors.get("primary_text", "#eeeeee")
+        accent = colors.get("accent_info", "#2196F3")
+        accent_hover = colors.get("status_running", "#1976D2")
+
+        for btn in getattr(self, "_option_buttons", []):
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: rgba(255, 255, 255, 0.08);
+                    color: {primary};
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 14px;
+                    font-size: 13px;
+                    text-align: left;
+                }}
+                QPushButton:hover {{
+                    background-color: rgba(255, 255, 255, 0.15);
+                }}
+            """)
+
+        if hasattr(self, "_input"):
+            self._input.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: rgba(255, 255, 255, 0.08);
+                    color: {primary};
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                    font-size: 13px;
+                }}
+            """)
+
+        if hasattr(self, "_submit_btn"):
+            self._submit_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {accent};
+                    color: {colors.get('primary_text', '#ffffff')};
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font-size: 13px;
+                }}
+                QPushButton:hover {{
+                    background-color: {accent_hover};
+                }}
+            """)
 
     def _on_option_selected(self, option: str) -> None:
         response = QuestionAnswered(answer=option, session_id=self._event.session_id)
