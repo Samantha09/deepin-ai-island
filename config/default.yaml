@@ -3,5 +3,9 @@ island:
   animation_enabled: true
   compact_timeout_ms: 5000
   expanded_max_height_ratio: 0.6
+  position_offset_x: 0
+  position_offset_y: 12
+theme:
+  id: dark
 debug:
   mock_events_enabled: true

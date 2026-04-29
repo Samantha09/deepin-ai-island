@@ -13,6 +13,9 @@ from island_ui.card_factory import CardFactory
 from island_ui.event_source import EventSource
 from island_ui.events import Event, SessionStarted, SessionEnded
 from island_ui.session import Session
+from island_ui.config_manager import ConfigManager
+from island_ui.theme import Theme, ThemePreset
+from island_ui.settings_drawer import SettingsDrawer
 
 
 class IslandWindow(QWidget):
@@ -34,6 +37,12 @@ class IslandWindow(QWidget):
         self._setup_ui()
         self._setup_connections()
         self._setup_shortcuts()
+
+        self._config = ConfigManager(config_path="config/default.yaml")
+        self._theme = Theme()
+        self._apply_theme()
+        self._setup_drawer()
+        self._config.config_changed.connect(self._on_config_changed)
 
     def _setup_window(self) -> None:
         flags = (
@@ -79,6 +88,7 @@ class IslandWindow(QWidget):
         self._event_source.event_received.connect(self._on_event)
         self._state_machine.state_changed.connect(self._on_state_changed)
         self._pill.clicked.connect(self._on_pill_clicked)
+        self._pill.settings_clicked.connect(self._on_settings_clicked)
         self._panel.session_selected.connect(self._on_session_selected)
 
     def _setup_shortcuts(self) -> None:
@@ -255,7 +265,10 @@ class IslandWindow(QWidget):
             self._state_machine.on_expand_requested()
 
     def _on_collapse(self) -> None:
-        self._state_machine.on_collapse_requested()
+        if self._drawer.isVisible():
+            self._hide_drawer()
+        else:
+            self._state_machine.on_collapse_requested()
 
     def enterEvent(self, event) -> None:
         self._leave_timer.stop()
@@ -271,6 +284,71 @@ class IslandWindow(QWidget):
     def _on_delayed_leave(self) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:
             self._state_machine.on_collapse_requested()
+
+    # ------------------------------------------------------------------
+    # Drawer / Theme / Config
+    # ------------------------------------------------------------------
+
+    def _setup_drawer(self) -> None:
+        self._drawer = SettingsDrawer(self._config, self)
+        self._drawer.setVisible(False)
+        self._drawer.closed.connect(self._hide_drawer)
+        self._layout.insertWidget(1, self._drawer)
+
+    def _on_settings_clicked(self) -> None:
+        if self._drawer.isVisible():
+            self._hide_drawer()
+        else:
+            if self._state_machine.state() == IslandState.EXPANDED:
+                self._state_machine.on_collapse_requested()
+            self._show_drawer()
+
+    def _show_drawer(self) -> None:
+        self._drawer.setVisible(True)
+        self._drawer.setFixedHeight(0)
+        anim = QPropertyAnimation(self._drawer, b"maximumHeight", self)
+        anim.setDuration(250)
+        anim.setStartValue(0)
+        anim.setEndValue(self._drawer.maximumHeight())
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.start()
+
+    def _hide_drawer(self) -> None:
+        anim = QPropertyAnimation(self._drawer, b"maximumHeight", self)
+        anim.setDuration(200)
+        anim.setStartValue(self._drawer.height())
+        anim.setEndValue(0)
+        anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        anim.finished.connect(lambda: self._drawer.setVisible(False))
+        anim.start()
+
+    def _on_config_changed(self, key: str, value) -> None:
+        if key == "theme.id" and value:
+            preset = ThemePreset(value.upper()) if hasattr(ThemePreset, value.upper()) else ThemePreset.DARK
+            self._theme.set_preset(preset)
+            self._apply_theme()
+        elif key.startswith("island.position_offset"):
+            self._reposition_window()
+
+    def _apply_theme(self) -> None:
+        colors = self._theme.current()
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor(colors["window_bg"]))
+        self.setPalette(palette)
+        self._pill.setStyleSheet(f"""
+            CompactPill {{
+                background-color: {colors['panel_bg']};
+                border-radius: 20px;
+                border: 1px solid {colors['border']};
+            }}
+        """)
+        self._panel.refresh_theme(colors)
+
+    def _reposition_window(self) -> None:
+        screen = QApplication.primaryScreen().availableGeometry()
+        x = screen.x() + (screen.width() - 400) // 2 + self._config.get("island.position_offset_x", 0)
+        y = screen.y() + 12 + self._config.get("island.position_offset_y", 0)
+        self.move(x, y)
 
     # ------------------------------------------------------------------
     # State changes → UI updates

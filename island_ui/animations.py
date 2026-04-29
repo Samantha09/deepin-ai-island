@@ -3,10 +3,11 @@ from PySide6.QtWidgets import QWidget, QGraphicsOpacityEffect
 
 
 class FadeSlideInAnimation(QObject):
-    def __init__(self, widget: QWidget, duration_ms: int = 250, parent: QObject = None):
+    def __init__(self, widget: QWidget, duration_ms: int = 250, enabled: bool = True, parent: QObject = None):
         super().__init__(parent or widget)
         self._widget = widget
         self._duration_ms = duration_ms
+        self._enabled = enabled
 
         self._opacity_effect = QGraphicsOpacityEffect(widget)
         self._opacity_effect.setOpacity(0.0)
@@ -23,6 +24,9 @@ class FadeSlideInAnimation(QObject):
         self._pos_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def start(self) -> None:
+        if not self._enabled:
+            self._opacity_effect.setOpacity(1.0)
+            return
         start_pos = self._widget.pos() + QPoint(0, -10)
         end_pos = self._widget.pos()
         self._pos_anim.setStartValue(start_pos)
@@ -33,10 +37,11 @@ class FadeSlideInAnimation(QObject):
 
 
 class FadeSlideOutAnimation(QObject):
-    def __init__(self, widget: QWidget, duration_ms: int = 250, parent: QObject = None):
+    def __init__(self, widget: QWidget, duration_ms: int = 250, enabled: bool = True, parent: QObject = None):
         super().__init__(parent or widget)
         self._widget = widget
         self._duration_ms = duration_ms
+        self._enabled = enabled
 
         self._opacity_effect = QGraphicsOpacityEffect(widget)
         self._opacity_effect.setOpacity(1.0)
@@ -53,6 +58,10 @@ class FadeSlideOutAnimation(QObject):
         self._pos_anim.setEasingCurve(QEasingCurve.Type.InCubic)
 
     def start(self) -> None:
+        if not self._enabled:
+            self._opacity_effect.setOpacity(0.0)
+            self._widget.hide()
+            return
         start_pos = self._widget.pos()
         end_pos = self._widget.pos() + QPoint(0, -10)
         self._pos_anim.setStartValue(start_pos)
