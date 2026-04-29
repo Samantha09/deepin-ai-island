@@ -57,6 +57,9 @@ class EventCard(QFrame):
         QTimer.singleShot(300, self.deleteLater)
         self.resolved.emit(self)
 
+    def refresh_theme(self, colors: dict[str, str]) -> None:
+        pass
+
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._enter_anim.start()

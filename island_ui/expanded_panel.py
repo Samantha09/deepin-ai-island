@@ -275,3 +275,7 @@ class ExpandedPanel(QWidget):
                 color: {colors['primary_text']};
             }}
         """)
+        for item in self._session_items.values():
+            item.refresh_theme(colors)
+        for card in self._cards:
+            card.refresh_theme(colors)
