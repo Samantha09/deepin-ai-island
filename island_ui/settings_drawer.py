@@ -32,57 +32,17 @@ class SettingsDrawer(QWidget):
         super().__init__(parent)
         self._config = config
 
-        self.setStyleSheet(
-            "SettingsDrawer {"
-            "  background-color: #1e1e23;"
-            "  border-radius: 16px;"
-            "}"
-            "QComboBox, QSpinBox {"
-            "  background-color: #2a2a30;"
-            "  color: #e0e0e0;"
-            "  border: 1px solid #3a3a40;"
-            "  border-radius: 6px;"
-            "  padding: 4px 8px;"
-            "  min-height: 24px;"
-            "}"
-            "QComboBox::drop-down {"
-            "  border: none;"
-            "  width: 20px;"
-            "}"
-            "QComboBox QAbstractItemView {"
-            "  background-color: #2a2a30;"
-            "  color: #e0e0e0;"
-            "  selection-background-color: #4a4a50;"
-            "}"
-            "QCheckBox {"
-            "  color: #e0e0e0;"
-            "  spacing: 8px;"
-            "}"
-            "QCheckBox::indicator {"
-            "  width: 18px;"
-            "  height: 18px;"
-            "  border-radius: 4px;"
-            "  border: 1px solid #3a3a40;"
-            "  background-color: #2a2a30;"
-            "}"
-            "QCheckBox::indicator:checked {"
-            "  background-color: #4a90d9;"
-            "  border: 1px solid #4a90d9;"
-            "}"
-            "QPushButton {"
-            "  background-color: #2a2a30;"
-            "  color: #e0e0e0;"
-            "  border: 1px solid #3a3a40;"
-            "  border-radius: 6px;"
-            "  padding: 6px 12px;"
-            "}"
-            "QPushButton:hover {"
-            "  background-color: #3a3a40;"
-            "}"
-            "QLabel {"
-            "  color: #c0c0c0;"
-            "}"
-        )
+        self.refresh_theme({
+            "panel_bg": "#1e1e23",
+            "control_bg": "#2a2a30",
+            "control_border": "#3a3a40",
+            "primary_text": "#e0e0e0",
+            "selection_bg": "#4a4a50",
+            "accent": "#4a90d9",
+            "label_text": "#c0c0c0",
+            "title_text": "#ffffff",
+            "hover_bg": "#3a3a40",
+        })
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 12, 16, 12)
@@ -91,26 +51,13 @@ class SettingsDrawer(QWidget):
         # Header
         header = QHBoxLayout()
         header.setSpacing(8)
-        title = QLabel("Settings")
-        title.setStyleSheet("color: #ffffff; font-size: 16px; font-weight: bold;")
-        header.addWidget(title)
+        self._title = QLabel("Settings")
+        header.addWidget(self._title)
         header.addStretch()
-        close_btn = QPushButton("×")
-        close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet(
-            "QPushButton {"
-            "  background-color: transparent;"
-            "  color: #c0c0c0;"
-            "  border: none;"
-            "  font-size: 18px;"
-            "  font-weight: bold;"
-            "}"
-            "QPushButton:hover {"
-            "  color: #ffffff;"
-            "}"
-        )
-        close_btn.clicked.connect(self.closed.emit)
-        header.addWidget(close_btn)
+        self._close_btn = QPushButton("×")
+        self._close_btn.setFixedSize(28, 28)
+        self._close_btn.clicked.connect(self.closed.emit)
+        header.addWidget(self._close_btn)
         root.addLayout(header)
 
         root.addWidget(self._separator())
@@ -207,6 +154,75 @@ class SettingsDrawer(QWidget):
         self._config.reset_to_defaults()
         self._config.save()
         self._load_from_config()
+
+    def refresh_theme(self, colors: dict[str, str]) -> None:
+        """Apply theme colors to the drawer and its controls."""
+        self.setStyleSheet(
+            f"SettingsDrawer {{"
+            f"  background-color: {colors['panel_bg']};"
+            f"  border-radius: 16px;"
+            f"}}"
+            f"QComboBox, QSpinBox {{"
+            f"  background-color: {colors['control_bg']};"
+            f"  color: {colors['primary_text']};"
+            f"  border: 1px solid {colors['control_border']};"
+            f"  border-radius: 6px;"
+            f"  padding: 4px 8px;"
+            f"  min-height: 24px;"
+            f"}}"
+            f"QComboBox::drop-down {{"
+            f"  border: none;"
+            f"  width: 20px;"
+            f"}}"
+            f"QComboBox QAbstractItemView {{"
+            f"  background-color: {colors['control_bg']};"
+            f"  color: {colors['primary_text']};"
+            f"  selection-background-color: {colors['selection_bg']};"
+            f"}}"
+            f"QCheckBox {{"
+            f"  color: {colors['primary_text']};"
+            f"  spacing: 8px;"
+            f"}}"
+            f"QCheckBox::indicator {{"
+            f"  width: 18px;"
+            f"  height: 18px;"
+            f"  border-radius: 4px;"
+            f"  border: 1px solid {colors['control_border']};"
+            f"  background-color: {colors['control_bg']};"
+            f"}}"
+            f"QCheckBox::indicator:checked {{"
+            f"  background-color: {colors['accent']};"
+            f"  border: 1px solid {colors['accent']};"
+            f"}}"
+            f"QPushButton {{"
+            f"  background-color: {colors['control_bg']};"
+            f"  color: {colors['primary_text']};"
+            f"  border: 1px solid {colors['control_border']};"
+            f"  border-radius: 6px;"
+            f"  padding: 6px 12px;"
+            f"}}"
+            f"QPushButton:hover {{"
+            f"  background-color: {colors['hover_bg']};"
+            f"}}"
+            f"QLabel {{"
+            f"  color: {colors['label_text']};"
+            f"}}"
+        )
+        self._title.setStyleSheet(
+            f"color: {colors['title_text']}; font-size: 16px; font-weight: bold;"
+        )
+        self._close_btn.setStyleSheet(
+            f"QPushButton {{"
+            f"  background-color: transparent;"
+            f"  color: {colors['label_text']};"
+            f"  border: none;"
+            f"  font-size: 18px;"
+            f"  font-weight: bold;"
+            f"}}"
+            f"QPushButton:hover {{"
+            f"  color: {colors['title_text']};"
+            f"}}"
+        )
 
     def _load_from_config(self) -> None:
         """Sync widget states from ConfigManager."""

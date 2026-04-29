@@ -324,7 +324,7 @@ class IslandWindow(QWidget):
 
     def _on_config_changed(self, key: str, value) -> None:
         if key == "theme.id" and value:
-            preset = ThemePreset(value.upper()) if hasattr(ThemePreset, value.upper()) else ThemePreset.DARK
+            preset = ThemePreset[value.upper()] if hasattr(ThemePreset, value.upper()) else ThemePreset.DARK
             self._theme.set_preset(preset)
             self._apply_theme()
         elif key.startswith("island.position_offset"):
@@ -343,6 +343,18 @@ class IslandWindow(QWidget):
             }}
         """)
         self._panel.refresh_theme(colors)
+        if hasattr(self, "_drawer"):
+            self._drawer.refresh_theme({
+                "panel_bg": colors["panel_bg"],
+                "control_bg": colors.get("card_bg", colors["panel_bg"]),
+                "control_border": colors["border"],
+                "primary_text": colors["primary_text"],
+                "selection_bg": colors.get("secondary_text", "#4a4a50"),
+                "accent": colors.get("accent_info", "#2196F3"),
+                "label_text": colors["muted_text"],
+                "title_text": colors["primary_text"],
+                "hover_bg": colors.get("secondary_text", "#3a3a40"),
+            })
 
     def _reposition_window(self) -> None:
         screen = QApplication.primaryScreen().availableGeometry()
