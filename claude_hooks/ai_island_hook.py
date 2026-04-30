@@ -69,8 +69,22 @@ def main():
         # stdin 不是合法 JSON，静默退出
         sys.exit(0)
 
+    # 调试日志：记录收到的所有 hook 事件
+    try:
+        with open("/tmp/ai-island-hook.log", "a", encoding="utf-8") as f:
+            f.write(f"[{time.time():.3f}] RECEIVED: {json.dumps(event_data, ensure_ascii=False)}\n")
+    except Exception:
+        pass
+
     # 补充事件类型标记（Claude Code hook stdin 里自带 event 字段）
     response = send_event_and_wait(event_data)
+
+    # 调试日志：记录发送结果
+    try:
+        with open("/tmp/ai-island-hook.log", "a", encoding="utf-8") as f:
+            f.write(f"[{time.time():.3f}] RESPONSE: {json.dumps(response, ensure_ascii=False) if response else 'none'}\n")
+    except Exception:
+        pass
 
     # 如果有响应，包装成 Claude Code 需要的格式后输出
     if response:

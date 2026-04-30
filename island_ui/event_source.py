@@ -9,6 +9,7 @@ from island_ui.events import (
     SessionEnded,
     PermissionRequested,
     QuestionAsked,
+    ChatMessage,
 )
 
 
@@ -49,17 +50,27 @@ class MockEventSource(EventSource):
         self._timeline = [
             # Session 1: Claude Code
             (0.0, SessionStarted(session_id=s1, payload={"agent": "Claude Code", "task": "fix auth bug"})),
+            (0.5, ChatMessage(session_id=s1, role="assistant", content="我来帮你修复 auth bug，先看一下 middleware 文件")),
+            (1.5, ChatMessage(session_id=s1, role="user", content="好的，改完告诉我")),
             (2.0, PermissionRequested(session_id=s1, action="Edit src/auth/middleware.ts")),
+            (2.5, ChatMessage(session_id=s1, role="user", content="允许编辑")),
+            (3.5, ChatMessage(session_id=s1, role="assistant", content="已经修复了 token 验证逻辑，测试通过了")),
             (6.0, SessionEnded(session_id=s1, payload={"status": "completed"})),
 
             # Session 2: Codex
             (3.0, SessionStarted(session_id=s2, payload={"agent": "Codex", "task": "backend server"})),
+            (3.5, ChatMessage(session_id=s2, role="assistant", content="需要部署后端服务，你打算用哪个环境？")),
             (5.0, QuestionAsked(session_id=s2, question="Which deployment target?", options=["Production", "Staging", "Local only"])),
+            (5.5, ChatMessage(session_id=s2, role="user", content="Staging")),
+            (7.0, ChatMessage(session_id=s2, role="assistant", content="好的，正在部署到 Staging 环境...")),
             (9.0, SessionEnded(session_id=s2, payload={"status": "completed"})),
 
             # Session 3: Gemini
             (6.0, SessionStarted(session_id=s3, payload={"agent": "Gemini", "task": "optimize queries"})),
+            (6.5, ChatMessage(session_id=s3, role="assistant", content="数据库查询有点慢，我来优化一下 SQL")),
             (8.0, PermissionRequested(session_id=s3, action="Edit src/db/queries.py")),
+            (8.5, ChatMessage(session_id=s3, role="user", content="同意")),
+            (10.0, ChatMessage(session_id=s3, role="assistant", content="添加了索引，查询速度提升了 80%")),
             (12.0, SessionEnded(session_id=s3, payload={"status": "completed"})),
         ]
 

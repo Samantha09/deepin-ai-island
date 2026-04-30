@@ -67,6 +67,19 @@ class ProgressUpdated(Event):
 
 
 @dataclass
+class ChatMessage(Event):
+    type: str = field(default="chat.message", init=False)
+    role: str = field(default="assistant")  # user, assistant, system
+    content: str = field(default="")
+
+    def __post_init__(self):
+        if self.content and "content" not in self.payload:
+            self.payload["content"] = self.content
+        if self.role and "role" not in self.payload:
+            self.payload["role"] = self.role
+
+
+@dataclass
 class Response:
     type: str
     payload: dict = field(default_factory=dict)

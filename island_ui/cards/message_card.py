@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QLabel
 
 from island_ui.cards.base_card import EventCard
-from island_ui.events import Event, ProgressUpdated, SessionStarted, SessionEnded
+from island_ui.events import Event, ProgressUpdated, SessionStarted, SessionEnded, ChatMessage
 
 
 class MessageCard(EventCard):
@@ -29,6 +29,11 @@ class MessageCard(EventCard):
 
     @staticmethod
     def _extract_text(event: Event) -> str:
+        if isinstance(event, ChatMessage):
+            role = event.payload.get("role", "assistant")
+            content = event.payload.get("content", "")
+            prefix = "用户" if role == "user" else ("AI" if role == "assistant" else "系统")
+            return f"{prefix}: {content}"
         if isinstance(event, ProgressUpdated):
             return event.message
         if isinstance(event, SessionStarted):

@@ -8,6 +8,7 @@ from island_ui.session import Session
 
 class SessionListItem(QFrame):
     clicked = Signal(str)  # emits session_id
+    hovered = Signal(str)  # emits session_id
 
     _STATUS_KEYS = {
         "running": "status_running",
@@ -20,26 +21,33 @@ class SessionListItem(QFrame):
         super().__init__(parent)
         self._session = session
         self._colors: dict[str, str] = {}
+        self.setMouseTracking(True)
         self._setup_ui()
         self._setup_style()
 
     def _setup_ui(self) -> None:
         self.setFrameShape(QFrame.Shape.NoFrame)
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(12, 8, 12, 8)
-        self._layout.setSpacing(10)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        # 顶部行
+        top_row = QWidget()
+        top_layout = QHBoxLayout(top_row)
+        top_layout.setContentsMargins(12, 8, 12, 8)
+        top_layout.setSpacing(10)
 
         # 左侧选中指示条（默认隐藏）
         self._indicator = QFrame()
         self._indicator.setFixedWidth(3)
         self._indicator.setFixedHeight(0)
         self._indicator.setStyleSheet("background: transparent; border: none; border-radius: 2px;")
-        self._layout.addWidget(self._indicator)
+        top_layout.addWidget(self._indicator)
 
         # Status dot
         self._dot = QLabel("●")
         self._dot.setStyleSheet("font-size: 10px;")
-        self._layout.addWidget(self._dot)
+        top_layout.addWidget(self._dot)
 
         # Middle: name + description
         self._middle = QWidget()
@@ -57,7 +65,7 @@ class SessionListItem(QFrame):
         self._middle_layout.addWidget(self._desc_label)
         self._refresh_desc()
 
-        self._layout.addWidget(self._middle, stretch=1)
+        top_layout.addWidget(self._middle, stretch=1)
 
         # Right: agent + terminal + time tags
         self._right = QWidget()
@@ -70,7 +78,22 @@ class SessionListItem(QFrame):
         self._tags_label.setStyleSheet("background: transparent;")
         self._right_layout.addWidget(self._tags_label)
 
-        self._layout.addWidget(self._right)
+        top_layout.addWidget(self._right)
+        root_layout.addWidget(top_row)
+
+        # 悬停展开区域（显示会话详情概要）
+        self._expand_area = QWidget()
+        expand_layout = QVBoxLayout(self._expand_area)
+        expand_layout.setContentsMargins(12, 0, 12, 8)
+        expand_layout.setSpacing(6)
+
+        self._expand_label = QLabel("")
+        self._expand_label.setStyleSheet("background: transparent; border: none;")
+        self._expand_label.setWordWrap(True)
+        expand_layout.addWidget(self._expand_label)
+
+        self._expand_area.setVisible(False)
+        root_layout.addWidget(self._expand_area)
 
     def set_selected(self, selected: bool) -> None:
         """切换左侧 accent 指示条显示状态."""
@@ -113,6 +136,7 @@ class SessionListItem(QFrame):
         self._desc_label.setStyleSheet(
             f"font-size: 11px; color: {colors['secondary_text']};"
         )
+        self._expand_label.setStyleSheet("background: transparent; border: none;")
         self._tags_label.setText(self._build_tags(colors))
         press_bg = colors.get("control_bg_hover", "#3a3a3c")
         self.setStyleSheet(
@@ -129,12 +153,108 @@ class SessionListItem(QFrame):
             f"}}"
         )
 
+    def enterEvent(self, event) -> None:
+        self._show_expand()
+        self.hovered.emit(self._session.id)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._expand_area.setVisible(False)
+        super().leaveEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if not self._expand_area.isVisible():
+            self._show_expand()
+        super().mouseMoveEvent(event)
+
+    def _show_expand(self) -> None:
+        self._expand_label.setText(self._build_summary())
+        self._expand_area.setVisible(True)
+
     def mousePressEvent(self, event) -> None:
         self.clicked.emit(self._session.id)
         super().mousePressEvent(event)
 
     def session(self) -> Session:
         return self._session
+
+    def _build_summary(self) -> str:
+        """构建简洁的聊天记录行列表，参考 VibeAgentIsland 风格。"""
+        events = self._session.events
+        lines: list[tuple[str, str, str]] = []  # (role, text, kind)
+        seen: set[tuple[str, str]] = set()
+
+        def add_line(role: str, text: str, kind: str) -> None:
+            text = text.strip()
+            if not text:
+                return
+            key = (kind, text)
+            if key in seen:
+                return
+            seen.add(key)
+            lines.append((role, text, kind))
+
+        for event in events:
+            if event.type == "chat.message":
+                kind = event.payload.get("role", "assistant")
+                role = "You" if kind == "user" else self._session.agent
+                text = event.payload.get("content", "")
+                add_line(role, text, kind)
+            elif event.type == "permission.requested":
+                action = event.payload.get("action", "")
+                text = f"我需要 {action}，可以吗？" if action else "我需要一个权限，可以吗？"
+                add_line(self._session.agent, text, "agent")
+            elif event.type == "question.asked":
+                question = event.payload.get("question", "")
+                text = question if question else "我有一个问题想问你"
+                add_line(self._session.agent, text, "agent")
+            elif event.type == "progress.updated":
+                msg = event.payload.get("message", "")
+                # 过滤掉纯状态消息，只保留有意义的进度内容
+                if msg and msg not in ("idle",) and not msg.startswith(("等待批准", "已完成")):
+                    add_line(self._session.agent, msg, "agent")
+
+        # 优先取对话行（非 system），不够再补 system
+        dialogue_lines = [l for l in lines if l[2] != "system"]
+        selected = dialogue_lines[-4:] if len(dialogue_lines) >= 2 else lines[-4:]
+
+        if not selected:
+            return '<div style="text-align: center; color: #636366; font-size: 12px; padding: 8px 0;">暂无聊天记录</div>'
+
+        # 颜色配置（参考 VibeAgentIsland）
+        agent_colors = {
+            "claude code": "#d28d80",
+            "codex": "#8ab8d4",
+            "gemini": "#b3a6ff",
+        }
+        agent_key = self._session.agent.lower()
+        role_color = agent_colors.get(agent_key, "#d28d80")  # 默认暖色
+        user_color = "#f1d8b8"
+        text_color = "#e5d9cb"
+        system_color = "#636366"
+
+        html_parts = []
+        for role, text, kind in selected:
+            if len(text) > 60:
+                text = text[:57] + "..."
+            if kind == "user":
+                rc = user_color
+                tc = text_color
+            elif kind == "system":
+                rc = system_color
+                tc = system_color
+            else:
+                rc = role_color
+                tc = text_color
+
+            html_parts.append(
+                f'<div style="margin: 2px 0; font-size: 11px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
+                f'<span style="color: {rc}; font-weight: bold; letter-spacing: 0.2px;">{role}:</span>'
+                f'<span style="color: {tc}; margin-left: 4px;">{text}</span>'
+                f'</div>'
+            )
+
+        return "".join(html_parts)
 
     def _build_tags(self, colors: dict[str, str] | None = None) -> str:
         if colors is None:

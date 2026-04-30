@@ -16,6 +16,7 @@ from island_ui.events import (
     PermissionRequested,
     QuestionAsked,
     ProgressUpdated,
+    ChatMessage,
 )
 
 SOCKET_PATH = "/tmp/ai-island.sock"
@@ -231,8 +232,12 @@ class ClaudeCodeEventSource(EventSource):
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self._poll_sessions)
 
-        # 已知的 session 状态：session_id -> {"status": ..., "cwd": ..., "waitingFor": ...}
+        # 已知的 session 状态：session_id -> {"status": ..., "cwd": ..., "waitingFor": ..., "transcript_path": ...}
         self._known_sessions: dict[str, dict] = {}
+        # 每个 transcript 文件已读取的字节偏移，避免重复解析
+        self._transcript_offsets: dict[str, int] = {}
+        # 已发送的 message uuid，去重
+        self._seen_message_uuids: set[str] = set()
 
     def start(self) -> None:
         self._known_sessions.clear()
@@ -253,7 +258,7 @@ class ClaudeCodeEventSource(EventSource):
     # ------------------------------------------------------------------
 
     def _poll_sessions(self) -> None:
-        """扫描 ~/.claude/sessions/*.json，发现新会话和状态变化。"""
+        """扫描 ~/.claude/sessions/*.json，发现新会话和状态变化，并读取 transcript 聊天记录。"""
         if not SESSIONS_DIR.exists():
             return
 
@@ -282,6 +287,7 @@ class ClaudeCodeEventSource(EventSource):
                     "status": status,
                     "cwd": cwd,
                     "waitingFor": waiting_for,
+                    "transcript_path": "",
                 }
                 self._emit_session_started(session_id, cwd)
             else:
@@ -295,6 +301,9 @@ class ClaudeCodeEventSource(EventSource):
                     known["waitingFor"] = waiting_for
                     self._handle_status_change(session_id, status, waiting_for, cwd)
 
+            # 读取 transcript 聊天记录
+            self._poll_transcript(session_id)
+
         # 检测已消失的会话
         for session_id in list(self._known_sessions.keys()):
             if session_id not in current_ids:
@@ -302,6 +311,112 @@ class ClaudeCodeEventSource(EventSource):
                 self.event_received.emit(
                     SessionEnded(session_id=session_id, payload={"status": "completed"})
                 )
+
+    def _poll_transcript(self, session_id: str) -> None:
+        """读取 session 对应的 transcript jsonl，提取 user/assistant 聊天记录。"""
+        known = self._known_sessions.get(session_id)
+        if not known:
+            return
+
+        transcript_path = known.get("transcript_path", "")
+        if not transcript_path:
+            # 尝试根据 session_id 推断路径
+            transcript_path = self._find_transcript_path(session_id)
+            if transcript_path:
+                known["transcript_path"] = transcript_path
+            else:
+                return
+
+        path = Path(transcript_path)
+        if not path.exists():
+            return
+
+        offset = self._transcript_offsets.get(transcript_path, 0)
+        current_size = path.stat().st_size
+        if current_size <= offset:
+            return
+
+        try:
+            with path.open("r", encoding="utf-8", errors="ignore") as f:
+                if offset > 0:
+                    f.seek(offset)
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    msg_type = record.get("type", "")
+                    if msg_type not in ("user", "assistant"):
+                        continue
+
+                    uuid = record.get("uuid", "")
+                    if uuid and uuid in self._seen_message_uuids:
+                        continue
+                    if uuid:
+                        self._seen_message_uuids.add(uuid)
+
+                    content = self._extract_transcript_text(record)
+                    if not content:
+                        continue
+
+                    role = "user" if msg_type == "user" else "assistant"
+                    self.event_received.emit(
+                        ChatMessage(
+                            session_id=session_id,
+                            role=role,
+                            content=content,
+                            payload={"uuid": uuid, "source": "transcript"},
+                        )
+                    )
+
+                self._transcript_offsets[transcript_path] = f.tell()
+        except OSError:
+            pass
+
+    @staticmethod
+    def _find_transcript_path(session_id: str) -> str:
+        """根据 session_id 在 ~/.claude/projects/ 下查找对应的 jsonl 文件。"""
+        projects_dir = Path.home() / ".claude" / "projects"
+        if not projects_dir.exists():
+            return ""
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            candidate = project_dir / f"{session_id}.jsonl"
+            if candidate.exists():
+                return str(candidate)
+        return ""
+
+    @staticmethod
+    def _extract_transcript_text(record: dict) -> str:
+        """从 transcript 记录中提取文本内容。"""
+        message = record.get("message", {})
+        if not isinstance(message, dict):
+            return ""
+
+        content = message.get("content", "")
+        if isinstance(content, str):
+            return content.strip()
+
+        if isinstance(content, list):
+            texts = []
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                item_type = item.get("type", "")
+                if item_type == "text":
+                    texts.append(item.get("text", ""))
+                elif item_type == "tool_use":
+                    name = item.get("name", "")
+                    if name:
+                        texts.append(f"使用工具: {name}")
+            return " ".join(texts).strip()
+
+        return ""
 
     def _emit_session_started(self, session_id: str, cwd: str) -> None:
         task = Path(cwd).name if cwd else "Unknown"
@@ -343,6 +458,14 @@ class ClaudeCodeEventSource(EventSource):
     # ------------------------------------------------------------------
 
     def _on_raw_event(self, data: dict) -> None:
+        # 从 hook 数据中提取 transcript_path 并更新已知会话
+        session_id = data.get("session_id", data.get("sessionId", ""))
+        transcript_path = data.get("transcript_path", "")
+        if session_id and transcript_path:
+            known = self._known_sessions.get(session_id)
+            if known and not known.get("transcript_path"):
+                known["transcript_path"] = transcript_path
+
         event = self._parse_socket_event(data)
         if event:
             self.event_received.emit(event)
@@ -402,18 +525,22 @@ class ClaudeCodeEventSource(EventSource):
 
         if event_name == "PostToolUse":
             tool = payload.get("tool", "Unknown")
-            return ProgressUpdated(
+            tool_input = payload.get("tool_input", {})
+            action = self._format_action(tool, tool_input)
+            return ChatMessage(
                 session_id=session_id,
-                message=f"已完成: {tool}",
+                role="assistant",
+                content=f"已完成 {action}",
                 payload=payload,
                 timestamp=timestamp,
             )
 
         if event_name == "UserPromptSubmit":
             prompt = payload.get("prompt", "")
-            return QuestionAsked(
+            return ChatMessage(
                 session_id=session_id,
-                question=prompt,
+                role="user",
+                content=prompt,
                 payload=payload,
                 timestamp=timestamp,
             )

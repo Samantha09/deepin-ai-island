@@ -11,6 +11,7 @@ from island_ui.events import (
     ProgressUpdated,
     SessionStarted,
     SessionEnded,
+    ChatMessage,
 )
 
 
@@ -21,7 +22,7 @@ class CardFactory:
             return PermissionCard(event, parent)
         elif isinstance(event, QuestionAsked):
             return QuestionCard(event, parent)
-        elif isinstance(event, (ProgressUpdated, SessionStarted, SessionEnded)):
+        elif isinstance(event, (ProgressUpdated, SessionStarted, SessionEnded, ChatMessage)):
             if isinstance(event, ProgressUpdated):
                 msg = event.payload.get("message", "")
                 # 跳过与 PermissionCard 重复的等待消息，以及信息量低的已完成消息

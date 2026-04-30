@@ -11,6 +11,7 @@ from island_ui.session import Session
 
 class ExpandedPanel(QWidget):
     session_selected = Signal(str)
+    session_hovered = Signal(str)
     back_to_list = Signal()
 
     def __init__(self, parent: QWidget = None):
@@ -128,6 +129,7 @@ class ExpandedPanel(QWidget):
             return
         item = SessionListItem(session, self._session_list_widget)
         item.clicked.connect(self.session_selected.emit)
+        item.hovered.connect(self.session_hovered.emit)
         self._session_items[session.id] = item
         # Insert before stretch
         self._session_list_layout.insertWidget(self._session_list_layout.count() - 1, item)

@@ -11,7 +11,7 @@ from island_ui.expanded_panel import ExpandedPanel
 from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.card_factory import CardFactory
 from island_ui.event_source import EventSource
-from island_ui.events import Event, SessionStarted, SessionEnded
+from island_ui.events import Event, SessionStarted, SessionEnded, ChatMessage
 from island_ui.session import Session
 from island_ui.config_manager import ConfigManager
 from island_ui.theme import Theme, ThemePreset
@@ -98,7 +98,8 @@ class IslandWindow(QWidget):
         self._state_machine.state_changed.connect(self._on_state_changed)
         self._pill.clicked.connect(self._on_pill_clicked)
         self._pill.settings_clicked.connect(self._on_settings_clicked)
-        self._panel.session_selected.connect(self._on_session_selected)
+        self._panel.session_selected.connect(self._on_session_clicked)
+        self._panel.session_hovered.connect(self._on_session_hovered)
 
     def _setup_shortcuts(self) -> None:
         toggle = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
@@ -168,6 +169,7 @@ class IslandWindow(QWidget):
         if card:
             # 已 resolved 的 permission 不再重复创建卡片
             from island_ui.cards.permission_card import PermissionCard
+            from island_ui.cards.question_card import QuestionCard
             if isinstance(card, PermissionCard):
                 tid = card.tool_use_id()
                 if session and session.is_permission_resolved(tid):
@@ -177,6 +179,8 @@ class IslandWindow(QWidget):
                     lambda resp, tid=tid: self._on_permission_responded(tid, resp)
                 )
                 card.open_chat.connect(self._on_permission_open_chat)
+            elif isinstance(card, QuestionCard):
+                card.answered.connect(self._on_question_answered)
             card.resolved.connect(self._on_card_resolved)
             self._panel.add_event_card(card)
 
@@ -219,20 +223,42 @@ class IslandWindow(QWidget):
         session = self._sessions.get(response.session_id)
         if session:
             session.mark_permission_resolved(tool_use_id)
+            # 记录用户回复到聊天记录
+            user_text = "允许" if decision == "allow" else "拒绝"
+            session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
             self._panel.update_session_item(session)
             self._update_pill()
+
+    def _on_question_answered(self, response) -> None:
+        """当用户回答问题后，记录用户回复到聊天记录。"""
+        session = self._sessions.get(response.session_id)
+        if session:
+            session.add_event(
+                ChatMessage(session_id=session.id, role="user", content=response.answer)
+            )
+            self._panel.update_session_item(session)
 
     def _on_permission_open_chat(self, session_id: str) -> None:
         """当用户在 PermissionCard 上点击 Open Chat 时，展开并切换到会话详情。"""
         if self._state_machine.state() != IslandState.EXPANDED:
             self._state_machine.on_expand_requested()
-        self._on_session_selected(session_id)
+        self._show_session_detail(session_id)
 
     # ------------------------------------------------------------------
     # Session selection → detail view
     # ------------------------------------------------------------------
 
-    def _on_session_selected(self, session_id: str) -> None:
+    def _on_session_hovered(self, session_id: str) -> None:
+        """悬停会话项时由 SessionListItem 自身展开下方概要，此处无需额外操作。"""
+        pass
+
+    def _on_session_clicked(self, session_id: str) -> None:
+        """点击会话项时切换到详情视图。"""
+        if self._state_machine.state() != IslandState.EXPANDED:
+            self._state_machine.on_expand_requested()
+        self._show_session_detail(session_id)
+
+    def _show_session_detail(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if not session:
             return
@@ -265,10 +291,8 @@ class IslandWindow(QWidget):
     # ------------------------------------------------------------------
 
     def _on_pill_clicked(self) -> None:
-        if self._state_machine.state() == IslandState.EXPANDED:
-            self._state_machine.on_collapse_requested()
-        else:
-            self._state_machine.on_expand_requested()
+        # 仅保留为占位，当前由悬停/离开控制展开与收起
+        pass
 
     def _toggle_expand(self) -> None:
         if self._state_machine.state() == IslandState.EXPANDED:

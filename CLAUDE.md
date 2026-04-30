@@ -65,6 +65,84 @@ Deepin AI Island — PySide6 (Qt6), Python 3.12+
 |-------|---------|
 | `/dynamic-island-development` | 项目级 Skill，开发灵动岛相关功能前必须调用。涵盖刘海 UI、会话状态机、IPC/Hooks、主题、权限审批、UI 组件、插件架构、多终端集成。 |
 
+## 开发自测流程（改完必须自测）
+
+**核心原则**：任何代码修改完成后，必须在提交前自行验证，不能依赖用户当测试员。
+
+### 1. Mock 模式快速验证 UI 逻辑
+
+```bash
+source .venv/bin/activate
+python island_ui/main.py --source mock
+```
+
+Mock 模式会按预设剧本自动发射事件，用于验证：
+- 会话列表项的展开/收起动画
+- 聊天记录渲染（气泡/行列表）
+- 主题切换、状态更新、卡片创建
+
+### 2. Socket 事件注入测试（验证真实事件源）
+
+无需启动 Claude Code，直接通过 Unix Socket 向 AI Island 注入事件：
+
+```python
+import json, socket, time
+
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+sock.connect("/tmp/ai-island.sock")
+
+# 注入用户输入事件
+sock.sendall(json.dumps({
+    "event": "UserPromptSubmit",
+    "session_id": "test-001",
+    "payload": {"prompt": "帮我修一个bug"}
+}).encode())
+sock.close()
+```
+
+注入后观察 AI Island 是否：
+- 正确显示新会话
+- 悬停时展开区域出现聊天记录（You: ...）
+- 无异常报错或崩溃
+
+### 3. Hook 安装状态检查
+
+```bash
+# 检查 hooks 是否注册
+python3 -m json.tool ~/.claude/settings.json | grep -A 3 ai_island_hook
+
+# 检查 socket 文件是否存在且被监听
+ls -la /tmp/ai-island.sock
+lsof /tmp/ai-island.sock
+```
+
+### 4. Claude 模式端到端验证
+
+```bash
+# 启动 AI Island（默认即 claude 模式）
+source .venv/bin/activate
+python island_ui/main.py
+
+# 在另一个终端启动 Claude Code（确保已重启以加载 hooks）
+claude
+```
+
+验证 checklist：
+- [ ] 输入 prompt 后，悬停会话项能看到 "You: [你的输入]"
+- [ ] AI 请求权限后，悬停能看到 "Claude Code: 我需要 ...，可以吗？"
+- [ ] 点击 Allow 后，悬停能看到 "You: 允许"
+- [ ] 无 "idle" 等状态消息混入聊天记录
+- [ ] 无 "暂无聊天记录" 误报
+
+### 5. 常见问题自诊
+
+| 现象 | 排查方向 |
+|------|---------|
+| 只显示 "idle" | 检查 `settings.json` 是否含 hooks 配置；Claude Code 是否重启；`ai_island_hook.py` 路径是否正确 |
+| "暂无聊天记录" | 检查 `_build_summary` 是否过滤掉了所有事件；确认事件类型映射正确（UserPromptSubmit → ChatMessage） |
+| 悬停不展开 | 检查 `enterEvent` / `mouseMoveEvent`；确认 `_expand_area.setVisible(True)` 被调用 |
+| 气泡/行列表样式错乱 | 检查 QLabel HTML 内联样式与 `setStyleSheet` 的优先级冲突 |
+
 ## 参考文档
 
 开发前按需阅读 memory 中的详细规范：
