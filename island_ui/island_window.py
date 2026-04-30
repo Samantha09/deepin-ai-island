@@ -50,6 +50,10 @@ class ExpandedBridge(QObject):
     def closeExpandedWindow(self) -> None:
         self.window.close_to_main()
 
+    @Slot(str, bool)
+    def respondPermission(self, session_id: str, approved: bool) -> None:
+        self.window.main_window.respond_permission(session_id, approved)
+
 
 class ExpandedWindow(QWidget):
     """展开面板窗口：承载详情页面"""
