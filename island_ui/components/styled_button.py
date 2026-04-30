@@ -51,7 +51,7 @@ class StyledButton(QPushButton):
             f"  background-color: {bg};"
             f"  color: {fg};"
             f"  border: none;"
-            f"  border-radius: 8px;"
+            f"  border-radius: 10px;"
             f"  padding: 8px 14px;"
             f"  font-size: 12px;"
             f"}}"
