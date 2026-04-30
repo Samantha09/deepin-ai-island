@@ -410,6 +410,12 @@ class ClaudeCodeEventSource(EventSource):
                 item_type = item.get("type", "")
                 if item_type == "text":
                     texts.append(item.get("text", ""))
+                elif item_type == "thinking":
+                    thinking = item.get("thinking", "")
+                    texts.append(f"[思考] {thinking[:40]}..." if len(thinking) > 40 else f"[思考] {thinking}")
+                elif item_type == "tool_result":
+                    tr_content = item.get("content", "")
+                    texts.append(f"[结果] {tr_content[:40]}..." if len(tr_content) > 40 else f"[结果] {tr_content}")
                 elif item_type == "tool_use":
                     name = item.get("name", "")
                     if name:

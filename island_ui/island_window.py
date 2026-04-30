@@ -377,6 +377,16 @@ class IslandWindow(QWidget):
             return
 
         session = self._sessions.get(event.session_id)
+        if not session and event.type in ("chat.message", "permission.requested", "question.asked"):
+            # 自动恢复被关闭的活跃会话
+            session = Session(
+                id=event.session_id,
+                name=event.payload.get("task", event.session_id[:8]),
+                agent=event.payload.get("agent", "Unknown"),
+                terminal=event.payload.get("terminal", ""),
+                start_time=event.timestamp,
+            )
+            self._sessions[event.session_id] = session
         if session:
             session.add_event(event)
 
