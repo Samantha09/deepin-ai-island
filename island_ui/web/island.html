@@ -164,6 +164,34 @@
       justify-content: space-between;
       width: 100%;
     }
+    /* 关闭按钮 */
+    .session-close-btn {
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 140ms ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+    .session-card:hover .session-close-btn {
+      opacity: 1;
+    }
+    .session-close-btn svg {
+      width: 100%;
+      height: 100%;
+      fill: rgba(255, 255, 255, 0.4);
+      transition: fill 140ms ease;
+    }
+    .session-close-btn:hover svg {
+      fill: #EF4444;
+    }
     .session-name {
       font-size: 12px;
       font-weight: 500;
@@ -401,6 +429,17 @@
         left.appendChild(name);
 
         row.appendChild(left);
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "session-close-btn";
+        closeBtn.type = "button";
+        closeBtn.innerHTML = '<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M608 112a112 112 0 0 1 111.616 102.784l0.384 9.216v16h144a48 48 0 0 1 6.528 95.552l-6.528 0.448h-48v400a176 176 0 0 1-165.248 175.68L640 912H384a176 176 0 0 1-175.68-165.248L208 736V336H160a48 48 0 0 1-47.552-41.472L112 288a48 48 0 0 1 41.472-47.552L160 240h144V224a112 112 0 0 1 102.784-111.616L416 112h192z m112 224h-416v400c0 41.408 31.488 75.52 71.808 79.616L384 816h256a80 80 0 0 0 79.616-71.808l0.384-8.192V336zM416 432a48 48 0 0 1 47.552 41.472l0.448 6.528v192a48 48 0 0 1-95.552 6.528L368 672v-192a48 48 0 0 1 48-48z m192 0a48 48 0 0 1 48 48v192a48 48 0 1 1-96 0v-192a48 48 0 0 1 48-48z m0-224h-192a16 16 0 0 0-15.552 12.352L400 224v16h224V224a16 16 0 0 0-12.352-15.552L608 208z"/></svg>';
+        closeBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (bridge) bridge.closeSession(session.id);
+        });
+        row.appendChild(closeBtn);
+
         card.appendChild(row);
 
         // 工作概要（1-2行）
