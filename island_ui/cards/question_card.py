@@ -40,7 +40,7 @@ class QuestionCard(EventCard):
                 background-color: rgba(255, 255, 255, 0.08);
                 color: #eeeeee;
                 border: none;
-                border-radius: 8px;
+                border-radius: 10px;
                 padding: 8px 12px;
                 font-size: 13px;
             }
@@ -88,7 +88,7 @@ class QuestionCard(EventCard):
                     background-color: {accent};
                     color: {colors.get('inverse_text', '#000000')};
                     border: none;
-                    border-radius: 8px;
+                    border-radius: 10px;
                     padding: 8px 16px;
                     font-size: 13px;
                 }}
