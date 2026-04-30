@@ -50,7 +50,7 @@ class PermissionCard(EventCard):
         # Tool name (monospaced, amber)
         self._tool_label = QLabel(tool)
         self._tool_label.setStyleSheet("""
-            font-size: 11px;
+            font-size: 12px;
             font-family: 'DejaVu Sans Mono', 'Noto Mono', monospace;
             font-weight: 500;
             color: #FF9800;
@@ -61,7 +61,7 @@ class PermissionCard(EventCard):
         input_preview = self._format_input(tool, tool_input)
         if input_preview:
             self._input_label = QLabel(input_preview)
-            self._input_label.setStyleSheet("font-size: 10px; color: rgba(255,255,255,0.5);")
+            self._input_label.setStyleSheet("font-size: 11px; color: #9A9A9A;")
             self._input_label.setWordWrap(True)
             self._layout.addWidget(self._input_label)
 
@@ -101,7 +101,7 @@ class PermissionCard(EventCard):
         )
         self._badge.setStyleSheet(f"""
             QLabel {{
-                background-color: {accent}26;
+                background-color: {self._hex_to_rgba(accent, 0.15)};
                 color: {accent};
                 border-radius: 4px;
                 padding: 2px 6px;
@@ -110,7 +110,7 @@ class PermissionCard(EventCard):
             }}
         """)
         self._tool_label.setStyleSheet(f"""
-            font-size: 11px;
+            font-size: 12px;
             font-family: 'DejaVu Sans Mono', 'Noto Mono', monospace;
             font-weight: 500;
             color: {accent};
@@ -148,10 +148,17 @@ class PermissionCard(EventCard):
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {colors.get('accent_allow', '#4ADE80')};
-                opacity: 0.9;
+                background-color: #5EE68F;
             }}
         """)
+
+    @staticmethod
+    def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+        hex_color = hex_color.lstrip("#")
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
 
     def tool_use_id(self) -> str:
         return self._tool_use_id
