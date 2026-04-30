@@ -447,13 +447,6 @@ class IslandWindow(QWidget):
         self._hover_timer.stop()
         self._leave_timer.stop()
         self._hover_debounce_timer.stop()
-        # 立即将主窗口设为 small_size，确保 expanded 的 source_rect 稳定
-        self._hovered = False
-        self._pending_hovered = None
-        small_rect = self._target_rect(*self.small_size)
-        self.animation.stop()
-        self.setGeometry(small_rect)
-        self._anim_target = self.small_size
         source_rect = self.geometry()
         self.expanded_window.open_from(source_rect)
 
