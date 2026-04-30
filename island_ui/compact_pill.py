@@ -1,9 +1,12 @@
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtCore import Qt, Signal, QTimer, QSize
+from PySide6.QtWidgets import (
+    QFrame, QHBoxLayout, QLabel, QPushButton, QWidget, QGraphicsDropShadowEffect,
+)
+from PySide6.QtGui import QColor
 
 
 class CompactPill(QFrame):
-    """Dynamic Island collapsed state: compact black pill."""
+    """Dynamic Island collapsed state: MioIsland-style compact notch content."""
 
     clicked = Signal()
     settings_clicked = Signal()
@@ -13,28 +16,42 @@ class CompactPill(QFrame):
         self._count = 0
         self._agents: list[str] = []
         self._colors: dict[str, str] = {}
+        self._waiting_label = ""
+        self._slide_index = 0
         self._setup_ui()
         self._setup_style()
 
     def _setup_ui(self) -> None:
         self.setFrameShape(QFrame.Shape.NoFrame)
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(14, 6, 14, 6)
+        self._layout.setContentsMargins(10, 4, 10, 4)
         self._layout.setSpacing(6)
 
-        # Amber dot indicator
-        self._pending_indicator = QLabel("●")
-        self._pending_indicator.setStyleSheet("font-size: 8px;")
-        self._pending_indicator.setVisible(False)
-        self._layout.addWidget(self._pending_indicator)
+        # Status dot with shadow (6px)
+        self._status_dot = QLabel("")
+        self._status_dot.setFixedSize(6, 6)
+        self._status_dot.setStyleSheet("background: transparent;")
+        self._status_dot_shadow = QGraphicsDropShadowEffect(self._status_dot)
+        self._status_dot_shadow.setBlurRadius(3)
+        self._status_dot_shadow.setColor(QColor(0, 0, 0, 128))
+        self._status_dot_shadow.setOffset(0, 0)
+        self._status_dot.setGraphicsEffect(self._status_dot_shadow)
+        self._layout.addWidget(self._status_dot)
 
-        self._count_label = QLabel("0")
-        self._count_label.setStyleSheet("font-size: 12px; font-weight: 600;")
-        self._layout.addWidget(self._count_label)
+        # Buddy icon (small avatar/indicator)
+        self._buddy_icon = QLabel("◉")
+        self._buddy_icon.setStyleSheet("font-size: 10px; color: #9A9A9A;")
+        self._buddy_icon.setFixedSize(16, 16)
+        self._layout.addWidget(self._buddy_icon)
 
-        self._agents_label = QLabel("")
-        self._agents_label.setStyleSheet("font-size: 11px;")
-        self._layout.addWidget(self._agents_label)
+        # Carousel text label (monospaced 13pt medium)
+        self._carousel_label = QLabel("")
+        self._carousel_label.setStyleSheet(
+            "font-size: 13px; font-weight: 500; font-family: 'DejaVu Sans Mono', 'Noto Mono', monospace;"
+        )
+        self._layout.addWidget(self._carousel_label)
+
+        self._layout.addStretch()
 
         # Settings gear (small, subtle)
         self._settings_btn = QPushButton("⋯")
@@ -54,10 +71,19 @@ class CompactPill(QFrame):
         self._settings_btn.clicked.connect(self.settings_clicked.emit)
         self._layout.addWidget(self._settings_btn)
 
-        self._layout.addStretch()
+        # Carousel timer: switch every 3 seconds
+        self._carousel_timer = QTimer(self)
+        self._carousel_timer.setInterval(3000)
+        self._carousel_timer.timeout.connect(self._rotate_carousel)
+
+        # Pulse timer for status dot (simpler than QPropertyAnimation on QSize)
+        self._pulse_timer = QTimer(self)
+        self._pulse_timer.setInterval(600)
+        self._pulse_timer.timeout.connect(self._toggle_pulse)
+        self._pulse_state = False
 
     def _setup_style(self) -> None:
-        self.setFixedHeight(32)
+        self.setFixedHeight(38)
         self.setMinimumWidth(120)
         self.setMaximumWidth(320)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -87,15 +113,11 @@ class CompactPill(QFrame):
                 border: 1px solid {card_border_hover};
             }}
         """)
-        self._pending_indicator.setStyleSheet(
-            f"color: {amber}; font-size: 8px;"
+        self._carousel_label.setStyleSheet(
+            f"font-size: 13px; font-weight: 500; color: {primary};"
+            f"font-family: 'DejaVu Sans Mono', 'Noto Mono', monospace;"
         )
-        self._count_label.setStyleSheet(
-            f"font-size: 12px; color: {primary}; font-weight: 600;"
-        )
-        self._agents_label.setStyleSheet(
-            f"font-size: 11px; color: {secondary};"
-        )
+        self._buddy_icon.setStyleSheet(f"font-size: 10px; color: {secondary};")
         self._settings_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
@@ -111,24 +133,69 @@ class CompactPill(QFrame):
 
     def set_count(self, waiting: int, active: int, total: int, waiting_label: str = "") -> None:
         self._count = waiting
-        if waiting > 0 and waiting_label:
-            text = f"{waiting}"
-        elif waiting > 0:
-            text = f"{waiting}"
-        elif total > 0:
-            text = f"{total}"
-        else:
-            text = "AI Island"
-        self._count_label.setText(text)
-        self._pending_indicator.setVisible(waiting > 0)
+        self._waiting_label = waiting_label
         self.setVisible(total > 0)
+
+        # Update status dot color based on state
+        if waiting > 0:
+            color = self._colors.get("accent_amber", "#F59E0B")
+            self._status_dot_shadow.setColor(QColor(color))
+            # Start pulse when attention needed
+            self._pulse_timer.start()
+        elif active > 0:
+            color = self._colors.get("accent_blue", "#66E8F8")
+            self._status_dot_shadow.setColor(QColor(color))
+            self._pulse_timer.stop()
+            self._status_dot.setFixedSize(6, 6)
+        else:
+            color = self._colors.get("accent_idle", "#CAFF00")
+            self._status_dot_shadow.setColor(QColor(color))
+            self._pulse_timer.stop()
+            self._status_dot.setFixedSize(6, 6)
+
+        # Build carousel slides
+        self._slides = []
+        if waiting > 0 and waiting_label:
+            self._slides.append(f"需要批准: {waiting_label}")
+        if self._agents:
+            self._slides.append(f"Agent: {', '.join(self._agents)}")
+        if total > 0:
+            self._slides.append(f"会话: {total}")
+        if waiting > 0:
+            self._slides.append(f"等待: {waiting}")
+        if not self._slides:
+            self._slides.append("AI Island")
+
+        self._slide_index = 0
+        self._update_carousel()
+
+        # Start carousel timer
+        if total > 0 and len(self._slides) > 1:
+            self._carousel_timer.start()
+        else:
+            self._carousel_timer.stop()
 
     def set_agents(self, agents: list[str]) -> None:
         self._agents = agents
-        if agents:
-            self._agents_label.setText("  ·  " + ", ".join(agents))
-        else:
-            self._agents_label.setText("")
+
+    def _rotate_carousel(self) -> None:
+        if not self._slides:
+            return
+        self._slide_index = (self._slide_index + 1) % len(self._slides)
+        self._update_carousel()
+
+    def _toggle_pulse(self) -> None:
+        self._pulse_state = not self._pulse_state
+        size = 8 if self._pulse_state else 5
+        self._status_dot.setFixedSize(size, size)
+
+    def _update_carousel(self) -> None:
+        if self._slides:
+            text = self._slides[self._slide_index]
+            # Truncate if too long
+            if len(text) > 28:
+                text = text[:25] + "..."
+            self._carousel_label.setText(text)
 
     def mousePressEvent(self, event) -> None:
         self.clicked.emit()

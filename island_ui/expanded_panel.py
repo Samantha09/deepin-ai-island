@@ -121,12 +121,12 @@ class ExpandedPanel(QWidget):
     def _set_selected_session(self, session_id: str) -> None:
         """高亮当前选中的会话项，清除其他项的高亮."""
         for sid, item in self._session_items.items():
-            item.set_selected(sid == session_id)
+            item.set_active(sid == session_id)
 
     def _clear_selection(self) -> None:
         """清除所有会话项的选中高亮."""
         for item in self._session_items.values():
-            item.set_selected(False)
+            item.set_active(False)
 
     def add_session_item(self, session: Session) -> None:
         if session.id in self._session_items:
