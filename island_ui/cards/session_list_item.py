@@ -219,19 +219,24 @@ class SessionListItem(QFrame):
         selected = dialogue_lines[-4:] if len(dialogue_lines) >= 2 else lines[-4:]
 
         if not selected:
-            return '<div style="text-align: center; color: #636366; font-size: 12px; padding: 8px 0;">暂无聊天记录</div>'
+            return '<div style="text-align: center; color: #76818d; font-size: 11px; padding: 8px 0;">暂无聊天记录</div>'
 
         # 颜色配置（参考 VibeAgentIsland）
         agent_colors = {
             "claude code": "#d28d80",
             "codex": "#8ab8d4",
             "gemini": "#b3a6ff",
+            "cursor": "#8ee7cf",
+            "opencode": "#ffc58d",
         }
         agent_key = self._session.agent.lower()
         role_color = agent_colors.get(agent_key, "#d28d80")  # 默认暖色
         user_color = "#f1d8b8"
-        text_color = "#e5d9cb"
-        system_color = "#636366"
+        assistant_text_color = "#8f98a2"
+        completed_text_color = "#d7efe3"
+        system_speaker_color = "#97a2ad"
+        system_text_color = "#76818d"
+        is_completed = self._session.status == "completed"
 
         html_parts = []
         for role, text, kind in selected:
@@ -239,18 +244,18 @@ class SessionListItem(QFrame):
                 text = text[:57] + "..."
             if kind == "user":
                 rc = user_color
-                tc = text_color
+                tc = "#e5d9cb"
             elif kind == "system":
-                rc = system_color
-                tc = system_color
+                rc = system_speaker_color
+                tc = system_text_color
             else:
                 rc = role_color
-                tc = text_color
+                tc = completed_text_color if is_completed else assistant_text_color
 
             html_parts.append(
-                f'<div style="margin: 2px 0; font-size: 11px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
+                f'<div style="margin: 1px 0; font-size: 10px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
                 f'<span style="color: {rc}; font-weight: bold; letter-spacing: 0.2px;">{role}:</span>'
-                f'<span style="color: {tc}; margin-left: 4px;">{text}</span>'
+                f'<span style="color: {tc}; margin-left: 6px;">{text}</span>'
                 f'</div>'
             )
 
