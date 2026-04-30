@@ -278,6 +278,11 @@ class IslandWindow(QWidget):
         self._leave_timer.setSingleShot(True)
         self._leave_timer.timeout.connect(self._on_delayed_leave)
 
+        # 审批自动弹出后的 5s 自动关闭
+        self._permission_auto_close_timer = QTimer(self)
+        self._permission_auto_close_timer.setSingleShot(True)
+        self._permission_auto_close_timer.timeout.connect(self._on_permission_auto_close)
+
         # 防抖定时器：避免鼠标在边界快速进出导致动画抖动
         self._hover_debounce_timer = QTimer(self)
         self._hover_debounce_timer.setSingleShot(True)
@@ -374,13 +379,18 @@ class IslandWindow(QWidget):
 
     def _auto_expand_for_permission(self, session_id: str) -> None:
         if not self.expanded_window.isVisible():
-            self.open_expanded_window()
-            self._leave_timer.stop()
-            self._leave_timer.start(5000)
+            self.select_session(session_id)
+            self._permission_auto_close_timer.stop()
+            self._permission_auto_close_timer.start(5000)
+
+    def _on_permission_auto_close(self) -> None:
+        if self.expanded_window.isVisible():
+            self.expanded_window.close_to_main()
 
     def _push_sessions_to_web(self) -> None:
         import json
-        sessions_data = []
+        waiting_sessions = []
+        other_sessions = []
         for session in self._sessions.values():
             waiting_action = ""
             if session.status == "needs_attention":
@@ -391,13 +401,18 @@ class IslandWindow(QWidget):
                         if not session.is_permission_resolved(tid):
                             waiting_action = event.payload.get("action", "")
                             break
-            sessions_data.append({
+            data = {
                 "id": session.id,
                 "name": session.name,
                 "agent": session.agent,
                 "status": session.status,
                 "waiting_action": waiting_action,
-            })
+            }
+            if session.status == "needs_attention":
+                waiting_sessions.append(data)
+            else:
+                other_sessions.append(data)
+        sessions_data = waiting_sessions + other_sessions
 
         total = len(self._sessions)
         active = sum(1 for s in self._sessions.values() if s.status not in ("completed", "idle"))
@@ -420,10 +435,12 @@ class IslandWindow(QWidget):
         session = self._sessions.get(session_id)
         if not session:
             return
+        self._permission_auto_close_timer.stop()
         self.expanded_window.update_session_detail(session)
         self.open_expanded_window()
 
     def respond_permission(self, session_id: str, approved: bool) -> None:
+        self._permission_auto_close_timer.stop()
         session = self._sessions.get(session_id)
         if not session:
             return
@@ -453,6 +470,7 @@ class IslandWindow(QWidget):
     def on_expanded_closed(self) -> None:
         """ExpandedWindow 关闭后恢复主窗口 hover 检测。"""
         self._expanded_open = False
+        self._permission_auto_close_timer.stop()
         self._hover_timer.start(100)
 
     # ------------------------------------------------------------------
