@@ -76,7 +76,10 @@ class CompactPill(QFrame):
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg};
-                border-radius: 18px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                border-bottom-left-radius: 14px;
+                border-bottom-right-radius: 14px;
                 border: 1px solid {card_border};
             }}
             QFrame:hover {{
