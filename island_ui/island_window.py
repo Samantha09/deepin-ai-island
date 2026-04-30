@@ -495,11 +495,13 @@ class IslandWindow(QWidget):
         start_height = self._panel.height()
         anim = QVariantAnimation(self)
         self._panel_anim = anim
-        # Dynamic Island 风格：展开慢且顺滑，收起稍快
+        # MioIsland spring 动画模拟
+        # Open: response 0.42s, dampingFraction 0.8 -> OutBack 模拟回弹
+        # Close: response 0.45s, dampingFraction 1.0 -> OutCubic 顺滑收起
         expanding = target_height > start_height
-        anim.setDuration(280 if expanding else 200)
+        anim.setDuration(420 if expanding else 200)
         anim.setEasingCurve(
-            QEasingCurve.Type.OutCubic if expanding else QEasingCurve.Type.InCubic
+            QEasingCurve.Type.OutBack if expanding else QEasingCurve.Type.InCubic
         )
         anim.setStartValue(start_height)
         anim.setEndValue(target_height)
