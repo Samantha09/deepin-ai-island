@@ -177,6 +177,37 @@
       text-overflow: ellipsis;
     }
 
+    /* 快捷审批按钮 */
+    .quick-perm {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .quick-perm button {
+      flex: 1;
+      padding: 5px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+    .quick-deny {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .quick-deny:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .quick-allow {
+      background: rgba(52, 199, 89, 0.85);
+      color: #000000;
+    }
+    .quick-allow:hover {
+      background: rgba(52, 199, 89, 1);
+    }
+
     /* 底部提示 */
     #hover-hint {
       position: absolute;
@@ -335,6 +366,34 @@
           waitingText.className = "session-waiting";
           waitingText.textContent = "需要审批: " + session.waiting_action;
           card.appendChild(waitingText);
+
+          // 快捷审批按钮
+          const permRow = document.createElement("div");
+          permRow.className = "quick-perm";
+
+          const denyBtn = document.createElement("button");
+          denyBtn.className = "quick-deny";
+          denyBtn.textContent = "拒绝";
+          denyBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (bridge) bridge.respondPermission(session.id, false);
+            card.style.opacity = "0.5";
+            card.style.pointerEvents = "none";
+          });
+
+          const allowBtn = document.createElement("button");
+          allowBtn.className = "quick-allow";
+          allowBtn.textContent = "允许";
+          allowBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (bridge) bridge.respondPermission(session.id, true);
+            card.style.opacity = "0.5";
+            card.style.pointerEvents = "none";
+          });
+
+          permRow.appendChild(denyBtn);
+          permRow.appendChild(allowBtn);
+          card.appendChild(permRow);
         }
 
         sessionList.appendChild(card);
