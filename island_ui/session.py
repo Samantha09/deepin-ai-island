@@ -12,6 +12,7 @@ class Session:
     agent: str
     terminal: str
     start_time: float = field(default_factory=lambda: datetime.now().timestamp())
+    last_updated: float = field(default_factory=lambda: datetime.now().timestamp())
     status: str = "running"  # running, idle, completed, needs_attention
     events: list[Event] = field(default_factory=list)
     resolved_tool_use_ids: set[str] = field(default_factory=set)
@@ -28,6 +29,7 @@ class Session:
 
     def add_event(self, event: Event) -> None:
         self.events.append(event)
+        self.last_updated = event.timestamp
         if event.type in ("permission.requested", "question.asked"):
             self.status = "needs_attention"
         elif event.type == "session.ended":
