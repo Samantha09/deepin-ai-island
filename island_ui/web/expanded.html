@@ -225,6 +225,9 @@
       sessionTitle.textContent = data.name || "未命名会话";
       sessionAgent.textContent = data.agent || "";
 
+      // 同步后端已解决的 permission id，避免列表页审批后详情页仍可点击
+      resolvedPermissions = new Set(data.resolved_tool_use_ids || []);
+
       content.innerHTML = "";
 
       const events = data.events || [];

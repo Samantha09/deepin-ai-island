@@ -190,6 +190,7 @@ class ExpandedWindow(QWidget):
             "agent": session.agent,
             "status": session.status,
             "events": events_data,
+            "resolved_tool_use_ids": list(session.resolved_tool_use_ids),
         }
         js = f"if (typeof window.updateSessionDetail === 'function') window.updateSessionDetail({json.dumps(data, ensure_ascii=False)});"
         self.web_view.page().runJavaScript(js)
