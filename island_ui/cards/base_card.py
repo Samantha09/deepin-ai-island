@@ -16,8 +16,8 @@ class EventCard(QFrame):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self._setup_style()
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(14, 14, 14, 14)
-        self._layout.setSpacing(8)
+        self._layout.setContentsMargins(16, 16, 16, 16)
+        self._layout.setSpacing(10)
 
         self._enter_anim = FadeSlideInAnimation(self, duration_ms=250)
 
@@ -29,7 +29,7 @@ class EventCard(QFrame):
                 border: 1px solid #2A2A2A;
             }
         """)
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(340)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def set_content(self, title: str, body: str) -> None:
