@@ -94,6 +94,17 @@ class PermissionCard(EventCard):
         border = colors.get("card_border", "#2A2A2A")
         allow_bg = colors.get("accent_green", "#4ADE80")
         inverse = colors.get("inverse_text", "#000000")
+        # MioIsland ChatApprovalBar 背景色
+        approval_bg = "#1A1A2E"
+
+        # 重写卡片背景为 approval bar 深色
+        self.setStyleSheet(
+            f"QFrame {{"
+            f"  background-color: {approval_bg};"
+            f"  border-radius: 16px;"
+            f"  border: 1px solid {border};"
+            f"}}"
+        )
 
         self._dot.setStyleSheet(f"color: {accent}; font-size: 10px;")
         self._title.setStyleSheet(
