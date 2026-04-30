@@ -26,7 +26,7 @@ class EventCard(QFrame):
             QFrame {
                 background-color: #0c0f14;
                 border-radius: 16px;
-                border: 1px solid #ffffff08;
+                border: 1px solid rgba(255,255,255,0.03);
             }
         """)
         self.setMinimumWidth(320)

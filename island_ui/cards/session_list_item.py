@@ -112,11 +112,11 @@ class SessionListItem(QFrame):
             QFrame {
                 background-color: #0c0f14;
                 border-radius: 16px;
-                border: 1px solid #ffffff08;
+                border: 1px solid rgba(255,255,255,0.03);
             }
             QFrame:hover {
                 background-color: #141820;
-                border: 1px solid #ffffff12;
+                border: 1px solid rgba(255,255,255,0.07);
             }
             QFrame:pressed {
                 background-color: #1a1f26;
@@ -140,8 +140,8 @@ class SessionListItem(QFrame):
         self._expand_label.setStyleSheet("background: transparent; border: none;")
         self._tags_label.setText(self._build_tags(colors))
         press_bg = colors.get("control_bg_hover", "#3a3a3c")
-        card_border = colors.get("card_border", "#ffffff08")
-        card_border_hover = colors.get("card_border_hover", "#ffffff12")
+        card_border = colors.get("card_border", "rgba(255,255,255,0.03)")
+        card_border_hover = colors.get("card_border_hover", "rgba(255,255,255,0.07)")
         self.setStyleSheet(
             f"QFrame {{"
             f"  background-color: {colors['card_bg']};"

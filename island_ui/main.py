@@ -91,6 +91,8 @@ def main():
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    # 全局移除 Qt 默认焦点外框（Linux 桌面常见黄色/橙色轮廓）
+    app.setStyleSheet("* { outline: none; }")
     _setup_font(app)
 
     compact_timeout = island_cfg.get("compact_timeout_ms", 5000)

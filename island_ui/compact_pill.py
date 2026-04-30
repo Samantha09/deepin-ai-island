@@ -71,8 +71,8 @@ class CompactPill(QFrame):
         amber = colors.get("accent_amber", "#ff9500")
 
         hover_bg = colors.get("card_bg_hover", "#2c2c2e")
-        card_border = colors.get("card_border", "#ffffff08")
-        card_border_hover = colors.get("card_border_hover", "#ffffff12")
+        card_border = colors.get("card_border", "rgba(255,255,255,0.03)")
+        card_border_hover = colors.get("card_border_hover", "rgba(255,255,255,0.07)")
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg};
