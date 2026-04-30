@@ -30,8 +30,8 @@ class ExpandedPanel(QWidget):
         # ── Session List View ──
         self._session_list_widget = QWidget()
         self._session_list_layout = QVBoxLayout(self._session_list_widget)
-        self._session_list_layout.setContentsMargins(12, 12, 12, 12)
-        self._session_list_layout.setSpacing(8)
+        self._session_list_layout.setContentsMargins(8, 8, 8, 8)
+        self._session_list_layout.setSpacing(2)
         self._session_list_layout.addStretch()
 
         self._session_scroll = QScrollArea()
