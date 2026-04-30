@@ -34,6 +34,10 @@ class IslandBridge(QObject):
     def respondPermission(self, session_id: str, approved: bool) -> None:
         self.window.respond_permission(session_id, approved)
 
+    @Slot(str)
+    def closeSession(self, session_id: str) -> None:
+        self.window.close_session(session_id)
+
     @Slot()
     def openExpandedWindow(self) -> None:
         self.window.open_expanded_window()
@@ -420,6 +424,19 @@ class IslandWindow(QWidget):
         running_sessions = []
         other_sessions = []
         for session in self._sessions.values():
+            if session.status == "needs_attention":
+                waiting_sessions.append(session)
+            elif session.status == "running":
+                running_sessions.append(session)
+            else:
+                other_sessions.append(session)
+
+        # 每组按最后更新时间降序排列
+        for group in (waiting_sessions, running_sessions, other_sessions):
+            group.sort(key=lambda s: s.last_updated, reverse=True)
+
+        sessions_data = []
+        for session in waiting_sessions + running_sessions + other_sessions:
             waiting_action = ""
             if session.status == "needs_attention":
                 # 查找最近的未解决 permission 事件
@@ -429,21 +446,14 @@ class IslandWindow(QWidget):
                         if not session.is_permission_resolved(tid):
                             waiting_action = event.payload.get("action", "")
                             break
-            data = {
+            sessions_data.append({
                 "id": session.id,
                 "name": session.name,
                 "agent": session.agent,
                 "status": session.status,
                 "waiting_action": waiting_action,
                 "summary": self._build_session_summary(session),
-            }
-            if session.status == "needs_attention":
-                waiting_sessions.append(data)
-            elif session.status == "running":
-                running_sessions.append(data)
-            else:
-                other_sessions.append(data)
-        sessions_data = waiting_sessions + running_sessions + other_sessions
+            })
 
         total = len(self._sessions)
         active = sum(1 for s in self._sessions.values() if s.status not in ("completed", "idle"))
@@ -489,6 +499,10 @@ class IslandWindow(QWidget):
         # 审批完成后立即缩回 expanded 窗口
         if self.expanded_window.isVisible():
             self.expanded_window.close_to_main()
+
+    def close_session(self, session_id: str) -> None:
+        self._sessions.pop(session_id, None)
+        self._push_sessions_to_web()
 
     def open_expanded_window(self) -> None:
         if self.expanded_window.isVisible():
