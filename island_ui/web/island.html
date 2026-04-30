@@ -192,6 +192,17 @@
     .session-status-dot.needs_attention { background: #F59E0B; }
     .session-status-dot.completed { background: #4ADE80; }
     .session-status-dot.idle { background: #9A9A9A; }
+    .session-summary {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      margin-top: 3px;
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
     .session-waiting {
       font-size: 10px;
       color: #F59E0B;
@@ -389,13 +400,16 @@
         left.appendChild(dot);
         left.appendChild(name);
 
-        const agent = document.createElement("div");
-        agent.className = "session-agent";
-        agent.textContent = session.agent;
-
         row.appendChild(left);
-        row.appendChild(agent);
         card.appendChild(row);
+
+        // 工作概要（1-2行）
+        if (session.summary) {
+          const summaryEl = document.createElement("div");
+          summaryEl.className = "session-summary";
+          summaryEl.textContent = session.summary;
+          card.appendChild(summaryEl);
+        }
 
         // 只要状态是 needs_attention 就显示审批按钮
         if (session.status === "needs_attention") {

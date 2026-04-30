@@ -391,9 +391,32 @@ class IslandWindow(QWidget):
         if self.expanded_window.isVisible():
             self.expanded_window.close_to_main()
 
+    def _build_session_summary(self, session: Session) -> str:
+        """从会话事件中提取 1-2 行简短工作概要。"""
+        summaries: list[str] = []
+        for event in reversed(session.events):
+            if event.type == "chat.message":
+                content = event.payload.get("content", "")
+                role = event.payload.get("role", "assistant")
+                prefix = "你" if role == "user" else "AI"
+                text = content[:50] + "..." if len(content) > 50 else content
+                summaries.append(f"{prefix}: {text}")
+            elif event.type == "permission.requested":
+                action = event.payload.get("action", "")
+                text = action[:50] + "..." if len(action) > 50 else action
+                summaries.append(f"需要审批: {text}")
+            elif event.type == "progress.updated":
+                msg = event.payload.get("message", "")
+                if msg and msg != "idle":
+                    summaries.append(msg[:50])
+            if len(summaries) >= 2:
+                break
+        return " · ".join(reversed(summaries))
+
     def _push_sessions_to_web(self) -> None:
         import json
         waiting_sessions = []
+        running_sessions = []
         other_sessions = []
         for session in self._sessions.values():
             waiting_action = ""
@@ -411,12 +434,15 @@ class IslandWindow(QWidget):
                 "agent": session.agent,
                 "status": session.status,
                 "waiting_action": waiting_action,
+                "summary": self._build_session_summary(session),
             }
             if session.status == "needs_attention":
                 waiting_sessions.append(data)
+            elif session.status == "running":
+                running_sessions.append(data)
             else:
                 other_sessions.append(data)
-        sessions_data = waiting_sessions + other_sessions
+        sessions_data = waiting_sessions + running_sessions + other_sessions
 
         total = len(self._sessions)
         active = sum(1 for s in self._sessions.values() if s.status not in ("completed", "idle"))
