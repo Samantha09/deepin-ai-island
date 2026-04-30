@@ -65,6 +65,8 @@ class IslandWindow(QWidget):
         palette.setColor(self.backgroundRole(), QColor("#000000"))
         self.setPalette(palette)
         self.setAutoFillBackground(True)
+        # 全局移除 Qt 默认的焦点黄色外框（Linux 桌面常见）
+        self.setStyleSheet("QWidget { outline: none; }")
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(8, 8, 8, 8)
