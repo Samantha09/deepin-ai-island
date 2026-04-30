@@ -60,7 +60,7 @@ class SessionListItem(QFrame):
         self._middle_layout.addWidget(self._name_label)
 
         self._desc_label = QLabel("")
-        self._desc_label.setStyleSheet("font-size: 11px; color: #8e8e93;")
+        self._desc_label.setStyleSheet("font-size: 10px; color: #8e8e93;")
         self._desc_label.setWordWrap(True)
         self._middle_layout.addWidget(self._desc_label)
         self._refresh_desc()
@@ -110,15 +110,16 @@ class SessionListItem(QFrame):
     def _setup_style(self) -> None:
         self.setStyleSheet("""
             QFrame {
-                background-color: #1c1c1e;
-                border-radius: 10px;
-                border: none;
+                background-color: #0c0f14;
+                border-radius: 16px;
+                border: 1px solid #ffffff08;
             }
             QFrame:hover {
-                background-color: #2c2c2e;
+                background-color: #141820;
+                border: 1px solid #ffffff12;
             }
             QFrame:pressed {
-                background-color: #3a3a3c;
+                background-color: #1a1f26;
             }
         """)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -134,19 +135,22 @@ class SessionListItem(QFrame):
             f"font-size: 13px; color: {colors['primary_text']}; font-weight: 500;"
         )
         self._desc_label.setStyleSheet(
-            f"font-size: 11px; color: {colors['secondary_text']};"
+            f"font-size: 10px; color: {colors['secondary_text']};"
         )
         self._expand_label.setStyleSheet("background: transparent; border: none;")
         self._tags_label.setText(self._build_tags(colors))
         press_bg = colors.get("control_bg_hover", "#3a3a3c")
+        card_border = colors.get("card_border", "#ffffff08")
+        card_border_hover = colors.get("card_border_hover", "#ffffff12")
         self.setStyleSheet(
             f"QFrame {{"
             f"  background-color: {colors['card_bg']};"
-            f"  border-radius: 10px;"
-            f"  border: none;"
+            f"  border-radius: 16px;"
+            f"  border: 1px solid {card_border};"
             f"}}"
             f"QFrame:hover {{"
             f"  background-color: {colors['card_bg_hover']};"
+            f"  border: 1px solid {card_border_hover};"
             f"}}"
             f"QFrame:pressed {{"
             f"  background-color: {press_bg};"

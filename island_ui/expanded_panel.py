@@ -209,7 +209,7 @@ class ExpandedPanel(QWidget):
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: {bg};
-                border-radius: 20px;
+                border-radius: 24px;
                 border: none;
             }}
             QScrollArea {{

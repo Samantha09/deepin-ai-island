@@ -50,7 +50,7 @@ class PermissionCard(EventCard):
         # Tool name (monospaced, amber)
         self._tool_label = QLabel(tool)
         self._tool_label.setStyleSheet("""
-            font-size: 12px;
+            font-size: 11px;
             font-family: 'DejaVu Sans Mono', 'Noto Mono', monospace;
             font-weight: 500;
             color: #FF9800;
@@ -61,7 +61,7 @@ class PermissionCard(EventCard):
         input_preview = self._format_input(tool, tool_input)
         if input_preview:
             self._input_label = QLabel(input_preview)
-            self._input_label.setStyleSheet("font-size: 11px; color: rgba(255,255,255,0.5);")
+            self._input_label.setStyleSheet("font-size: 10px; color: rgba(255,255,255,0.5);")
             self._input_label.setWordWrap(True)
             self._layout.addWidget(self._input_label)
 
@@ -106,7 +106,7 @@ class PermissionCard(EventCard):
             }}
         """)
         self._tool_label.setStyleSheet(f"""
-            font-size: 12px;
+            font-size: 11px;
             font-family: 'DejaVu Sans Mono', 'Noto Mono', monospace;
             font-weight: 500;
             color: {accent};

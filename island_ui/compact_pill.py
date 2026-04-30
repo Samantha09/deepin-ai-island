@@ -71,14 +71,17 @@ class CompactPill(QFrame):
         amber = colors.get("accent_amber", "#ff9500")
 
         hover_bg = colors.get("card_bg_hover", "#2c2c2e")
+        card_border = colors.get("card_border", "#ffffff08")
+        card_border_hover = colors.get("card_border_hover", "#ffffff12")
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg};
-                border-radius: 16px;
-                border: none;
+                border-radius: 18px;
+                border: 1px solid {card_border};
             }}
             QFrame:hover {{
                 background-color: {hover_bg};
+                border: 1px solid {card_border_hover};
             }}
         """)
         self._pending_indicator.setStyleSheet(
