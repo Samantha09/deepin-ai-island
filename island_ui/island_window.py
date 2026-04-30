@@ -100,8 +100,13 @@ class ExpandedWindow(QWidget):
 
         self._closing = False
         self._opening = False
+        self._close_timer: Optional[QTimer] = None
 
     def open_from(self, source_rect: QRect) -> None:
+        # 取消任何 pending 的关闭操作，避免快速切换卡片时旧 timer 把新窗口 hide 掉
+        if self._close_timer is not None:
+            self._close_timer.stop()
+            self._close_timer = None
         self._closing = False
         self._opening = True
         self.content_timer.stop()
@@ -146,13 +151,20 @@ class ExpandedWindow(QWidget):
         self.content_timer.stop()
         self.animation.stop()
         self.web_view.hide()
-        QTimer.singleShot(70, self._finish_close_to_main)
+        self._close_timer = QTimer(self)
+        self._close_timer.setSingleShot(True)
+        self._close_timer.timeout.connect(self._finish_close_to_main)
+        self._close_timer.start(70)
 
     def _finish_close_to_main(self) -> None:
+        self._close_timer = None
+        if not self._closing:
+            return
         self.hide()
         self.main_window.raise_()
         self.main_window.activateWindow()
         self._closing = False
+        self.main_window.on_expanded_closed()
 
     def focusOutEvent(self, event) -> None:
         super().focusOutEvent(event)
@@ -199,6 +211,7 @@ class IslandWindow(QWidget):
         self.top_margin = 16
         self._hovered = False
         self._native_fixed = False
+        self._expanded_open = False
 
         self.base_flags = (
             Qt.FramelessWindowHint
@@ -429,14 +442,33 @@ class IslandWindow(QWidget):
     def open_expanded_window(self) -> None:
         if self.expanded_window.isVisible():
             return
+        # 暂停主窗口 hover 检测，避免 expanded 打开期间主窗口因鼠标不在上面而收缩
+        self._expanded_open = True
+        self._hover_timer.stop()
+        self._leave_timer.stop()
+        self._hover_debounce_timer.stop()
+        # 立即将主窗口设为 small_size，确保 expanded 的 source_rect 稳定
+        self._hovered = False
+        self._pending_hovered = None
+        small_rect = self._target_rect(*self.small_size)
+        self.animation.stop()
+        self.setGeometry(small_rect)
+        self._anim_target = self.small_size
         source_rect = self.geometry()
         self.expanded_window.open_from(source_rect)
+
+    def on_expanded_closed(self) -> None:
+        """ExpandedWindow 关闭后恢复主窗口 hover 检测。"""
+        self._expanded_open = False
+        self._hover_timer.start(100)
 
     # ------------------------------------------------------------------
     # Hover / Leave
     # ------------------------------------------------------------------
 
     def _check_hover(self) -> None:
+        if self._expanded_open:
+            return
         from PySide6.QtGui import QCursor
         widget = QApplication.widgetAt(QCursor.pos())
         inside = widget is not None and (widget is self or self.isAncestorOf(widget))
@@ -449,6 +481,8 @@ class IslandWindow(QWidget):
                 self._leave_timer.start(1000)
 
     def _on_delayed_leave(self) -> None:
+        if self._expanded_open:
+            return
         if self._hovered:
             self.set_hovered(False)
 
