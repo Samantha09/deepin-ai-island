@@ -25,7 +25,7 @@ class MessageCard(EventCard):
         self._colors = colors
         super().refresh_theme(colors)
         secondary = colors.get("secondary_text", "#cccccc")
-        self._label.setStyleSheet(f"font-size: 12px; color: {secondary};")
+        self._label.setStyleSheet(f"font-size: 13px; color: {secondary};")
 
     @staticmethod
     def _extract_text(event: Event) -> str:
