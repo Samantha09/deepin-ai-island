@@ -140,7 +140,7 @@ class SettingsDrawer(QWidget):
             f"  background-color: {colors['control_bg']};"
             f"  color: {colors['primary_text']};"
             f"  border: none;"
-            f"  border-radius: 6px;"
+            f"  border-radius: 10px;"
             f"  padding: 4px 8px;"
             f"  min-height: 24px;"
             f"  font-size: 12px;"
