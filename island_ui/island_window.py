@@ -2,7 +2,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QVariantAnimation
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication,
+    QWidget, QVBoxLayout, QApplication, QGraphicsDropShadowEffect,
 )
 from PySide6.QtGui import QKeySequence, QShortcut, QColor, QCursor
 
@@ -60,6 +60,13 @@ class IslandWindow(QWidget):
         x = screen.x() + (screen.width() - 400) // 2
         self.move(x, screen.y() + 12)
 
+        # MioIsland 风格阴影: 0 4px 24px rgba(0,0,0,0.7)
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(24)
+        shadow.setColor(QColor(0, 0, 0, 178))
+        shadow.setOffset(0, 4)
+        self.setGraphicsEffect(shadow)
+
     def _setup_ui(self) -> None:
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor("#000000"))
@@ -69,8 +76,8 @@ class IslandWindow(QWidget):
         self.setStyleSheet("QWidget { outline: none; }")
 
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(8, 8, 8, 8)
-        self._layout.setSpacing(8)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(0)
 
         self._pill = CompactPill()
         self._pill.setVisible(False)
@@ -391,10 +398,29 @@ class IslandWindow(QWidget):
         palette = self.palette()
         palette.setColor(self.backgroundRole(), QColor(colors["window_bg"]))
         self.setPalette(palette)
+        self._apply_notch_style(compact=(self._state_machine.state() == IslandState.COMPACT))
         self._pill.refresh_theme(colors)
         self._panel.refresh_theme(colors)
         if hasattr(self, "_drawer"):
             self._drawer.refresh_theme(colors)
+
+    def _apply_notch_style(self, compact: bool = True) -> None:
+        """根据状态应用 notch 圆角: compact 上 6/下 14, expanded 上 19/下 24."""
+        colors = self._theme.current()
+        if compact:
+            tl, tr, bl, br = 6, 6, 14, 14
+        else:
+            tl, tr, bl, br = 19, 19, 24, 24
+        self.setStyleSheet(f"""
+            QWidget {{
+                outline: none;
+                background-color: {colors['window_bg']};
+                border-top-left-radius: {tl}px;
+                border-top-right-radius: {tr}px;
+                border-bottom-left-radius: {bl}px;
+                border-bottom-right-radius: {br}px;
+            }}
+        """)
 
     def _reposition_window(self) -> None:
         screen = QApplication.primaryScreen().availableGeometry()
@@ -430,6 +456,7 @@ class IslandWindow(QWidget):
 
     def _set_compact_ui(self) -> None:
         self._pill.setVisible(True)
+        self._apply_notch_style(compact=True)
         def _on_collapse_finished():
             self._panel.setVisible(False)
             self._panel.show_session_list()
@@ -445,6 +472,7 @@ class IslandWindow(QWidget):
         self._pill.setVisible(True)
         self._panel.setVisible(True)
         self._panel.show_session_list()
+        self._apply_notch_style(compact=False)
         self._animate_panel(self._calc_panel_height())
 
     def _animate_panel(self, target_height: int, on_finished=None) -> None:
