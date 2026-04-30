@@ -113,12 +113,25 @@
       left: 0;
       top: 45px;
       width: 100%;
+      max-height: 260px;
       padding: 4px 10px 10px 10px;
       box-sizing: border-box;
       opacity: 0;
       transform: translateY(-4px);
       transition: opacity 160ms ease, transform 160ms ease;
       pointer-events: none;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    #session-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    #session-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #session-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
     }
     #capsule.hovered #session-panel {
       opacity: 1;
