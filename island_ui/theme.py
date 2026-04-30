@@ -41,6 +41,10 @@ PALETTES: dict[str, dict[str, str]] = {
         "status_running": "#F59E0B",
         "status_needs_attention": "#EF4444",
         "status_completed": "#4ADE80",
+        "accent_idle": "#CAFF00",
+        "accent_thinking": "#A78BFA",
+        "chat_bubble_fill": "#2F2F2F",
+        "shadow": "rgba(0,0,0,0.7)",
     },
     "light": {
         "window_bg": "#f5f5f7",
@@ -69,6 +73,10 @@ PALETTES: dict[str, dict[str, str]] = {
         "status_running": "#ff9500",
         "status_needs_attention": "#ff3b30",
         "status_completed": "#34c759",
+        "accent_idle": "#b8e600",
+        "accent_thinking": "#8a6de9",
+        "chat_bubble_fill": "#e8e8e8",
+        "shadow": "rgba(0,0,0,0.2)",
     },
     "classic": {
         "window_bg": "#0d0d0d",
@@ -97,6 +105,10 @@ PALETTES: dict[str, dict[str, str]] = {
         "status_running": "#ff9500",
         "status_needs_attention": "#ff3b30",
         "status_completed": "#34c759",
+        "accent_idle": "#b3d900",
+        "accent_thinking": "#9966cc",
+        "chat_bubble_fill": "#2a2a2a",
+        "shadow": "rgba(0,0,0,0.7)",
     },
 }
 
