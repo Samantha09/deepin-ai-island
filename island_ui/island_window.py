@@ -246,6 +246,7 @@ class IslandWindow(QWidget):
         self.animation = QPropertyAnimation(self, b"geometry")
         self.animation.setDuration(240)
         self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim_target: Optional[tuple[int, int]] = None
 
         initial_rect = self._target_rect(*self.small_size)
         self.setGeometry(initial_rect)
@@ -264,7 +265,13 @@ class IslandWindow(QWidget):
         self._leave_timer.setSingleShot(True)
         self._leave_timer.timeout.connect(self._on_delayed_leave)
 
-        # 轮询兜底
+        # 防抖定时器：避免鼠标在边界快速进出导致动画抖动
+        self._hover_debounce_timer = QTimer(self)
+        self._hover_debounce_timer.setSingleShot(True)
+        self._hover_debounce_timer.timeout.connect(self._apply_hovered)
+        self._pending_hovered: Optional[bool] = None
+
+        # 轮询兜底（只负责 leave_timer，不直接触发 hover 状态）
         self._hover_timer = QTimer(self)
         self._hover_timer.timeout.connect(self._check_hover)
         self._hover_timer.start(100)
@@ -277,14 +284,30 @@ class IslandWindow(QWidget):
         return QRect(x, y, width, height)
 
     def animate_to(self, width: int, height: int) -> None:
+        target_rect = self._target_rect(width, height)
+        # 如果已经在目标尺寸，不启动动画
+        if self.geometry() == target_rect:
+            return
+        # 如果当前动画正在向同一目标运行，不重启动画
+        if self.animation.state() == QPropertyAnimation.State.Running and self._anim_target == (width, height):
+            return
+        self._anim_target = (width, height)
         self.animation.stop()
         self.animation.setStartValue(self.geometry())
-        self.animation.setEndValue(self._target_rect(width, height))
+        self.animation.setEndValue(target_rect)
         self.animation.start()
         self.schedule_cleanup()
 
     def set_hovered(self, hovered: bool) -> None:
-        if self._hovered == hovered:
+        """由前端 JS 调用，带 80ms 防抖避免快速切换导致抖动."""
+        self._pending_hovered = hovered
+        self._hover_debounce_timer.stop()
+        self._hover_debounce_timer.start(80)
+
+    def _apply_hovered(self) -> None:
+        """执行防抖后的 hover 状态切换."""
+        hovered = self._pending_hovered
+        if hovered is None or self._hovered == hovered:
             return
         self._hovered = hovered
         target = self.large_size if hovered else self.small_size
