@@ -525,8 +525,8 @@ class ClaudeCodeEventSource(EventSource):
             return None
 
         if event_name == "PostToolUse":
-            tool = payload.get("tool", "Unknown")
-            tool_input = payload.get("tool_input", {})
+            tool = payload.get("tool") or data.get("tool_name") or data.get("tool") or "Unknown"
+            tool_input = payload.get("tool_input") or data.get("tool_input") or {}
             action = self._format_action(tool, tool_input)
             return ChatMessage(
                 session_id=session_id,
