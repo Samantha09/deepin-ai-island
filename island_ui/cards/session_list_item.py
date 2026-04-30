@@ -50,15 +50,10 @@ class SessionListItem(QFrame):
         row_layout.setContentsMargins(10, 6, 10, 6)
         row_layout.setSpacing(8)
 
-        # Status dot (6px)
+        # Status dot (6px, no shadow for performance)
         self._dot = QLabel("●")
         self._dot.setStyleSheet("font-size: 6px;")
         self._dot.setFixedSize(6, 6)
-        self._dot_shadow = QGraphicsDropShadowEffect(self._dot)
-        self._dot_shadow.setBlurRadius(3)
-        self._dot_shadow.setColor(QColor(0, 0, 0, 128))
-        self._dot_shadow.setOffset(0, 0)
-        self._dot.setGraphicsEffect(self._dot_shadow)
         row_layout.addWidget(self._dot)
 
         # Name label
@@ -101,7 +96,6 @@ class SessionListItem(QFrame):
         key = self._STATUS_KEYS.get(self._session.status, "status_needs_attention")
         color = colors.get(key, colors.get("secondary_text", "#8e8e93"))
         self._dot.setStyleSheet(f"color: {color}; font-size: 6px;")
-        self._dot_shadow.setColor(QColor(color))
 
         self._name_label.setStyleSheet(
             f"font-size: {'13px' if self._active else '12px'}; "

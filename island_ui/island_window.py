@@ -100,7 +100,12 @@ class IslandWindow(QWidget):
         # 部分 Linux 桌面环境下 leaveEvent 不可靠，用轮询兜底
         self._hover_timer = QTimer(self)
         self._hover_timer.timeout.connect(self._check_hover)
-        self._hover_timer.start(50)
+        self._hover_timer.start(100)
+
+        # 自动缩回计时器：审批弹开后 5s 自动收起
+        self._auto_collapse_timer = QTimer(self)
+        self._auto_collapse_timer.setSingleShot(True)
+        self._auto_collapse_timer.timeout.connect(self._on_auto_collapse)
 
     def _setup_connections(self) -> None:
         self._event_source.event_received.connect(self._on_event)
@@ -192,6 +197,13 @@ class IslandWindow(QWidget):
                 card.answered.connect(self._on_question_answered)
             card.resolved.connect(self._on_card_resolved)
             self._panel.add_event_card(card)
+
+            # 有审批事件时自动弹开展示 5s
+            if isinstance(card, PermissionCard):
+                if self._state_machine.state() != IslandState.EXPANDED:
+                    self._state_machine.on_expand_requested()
+                self._auto_collapse_timer.stop()
+                self._auto_collapse_timer.start(5000)
 
         self._update_pill()
 
@@ -330,8 +342,16 @@ class IslandWindow(QWidget):
         if self._state_machine.state() == IslandState.EXPANDED:
             self._state_machine.on_collapse_requested()
 
+    def _on_auto_collapse(self) -> None:
+        """审批弹开 5s 后自动收起（仅当用户未悬停时）"""
+        if self._state_machine.state() == IslandState.EXPANDED:
+            widget = QApplication.widgetAt(QCursor.pos())
+            inside = widget is not None and (widget is self or self.isAncestorOf(widget))
+            if not inside:
+                self._state_machine.on_collapse_requested()
+
     def _check_hover(self) -> None:
-        """50ms 轮询鼠标是否在窗口内，作为 leaveEvent/enterEvent 的兜底."""
+        """100ms 轮询鼠标是否在窗口内，作为 leaveEvent/enterEvent 的兜底."""
         widget = QApplication.widgetAt(QCursor.pos())
         inside = widget is not None and (widget is self or self.isAncestorOf(widget))
         if inside:
