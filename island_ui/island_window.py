@@ -1,25 +1,187 @@
+import os
+import sys
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QVariantAnimation
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication, QGraphicsDropShadowEffect,
-)
-from PySide6.QtGui import QKeySequence, QShortcut, QColor, QCursor
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QObject, Signal, Slot, QRect
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor
 
-from island_ui.compact_pill import CompactPill
-from island_ui.expanded_panel import ExpandedPanel
 from island_ui.state_machine import IslandStateMachine, IslandState
-from island_ui.card_factory import CardFactory
 from island_ui.event_source import EventSource
 from island_ui.events import Event, SessionStarted, SessionEnded, ChatMessage
 from island_ui.session import Session
-from island_ui.config_manager import ConfigManager
-from island_ui.theme import Theme, ThemePreset
-from island_ui.settings_drawer import SettingsDrawer
+from island_ui.card_factory import CardFactory
+
+
+class IslandBridge(QObject):
+    """JS -> Python 桥接对象（主窗口）"""
+
+    def __init__(self, window: "IslandWindow") -> None:
+        super().__init__()
+        self.window = window
+
+    @Slot(bool)
+    def setHovered(self, hovered: bool) -> None:
+        self.window.set_hovered(hovered)
+
+    @Slot(str)
+    def selectSession(self, session_id: str) -> None:
+        self.window.select_session(session_id)
+
+    @Slot(str, bool)
+    def respondPermission(self, session_id: str, approved: bool) -> None:
+        self.window.respond_permission(session_id, approved)
+
+    @Slot()
+    def openExpandedWindow(self) -> None:
+        self.window.open_expanded_window()
+
+
+class ExpandedBridge(QObject):
+    """JS -> Python 桥接对象（展开窗口）"""
+
+    def __init__(self, window: "ExpandedWindow") -> None:
+        super().__init__()
+        self.window = window
+
+    @Slot()
+    def closeExpandedWindow(self) -> None:
+        self.window.close_to_main()
+
+
+class ExpandedWindow(QWidget):
+    """展开面板窗口：承载详情页面"""
+
+    def __init__(self, main_window: "IslandWindow") -> None:
+        super().__init__()
+        self.main_window = main_window
+        self.target_size = (380, 420)
+        self.setWindowFlags(main_window.base_flags)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setStyleSheet("background: transparent; border: none;")
+
+        self.web_view = QWebEngineView(self)
+        self.web_view.setContextMenuPolicy(Qt.NoContextMenu)
+        self.web_view.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.web_view.setStyleSheet("background: transparent; border: none;")
+        self.web_view.page().setBackgroundColor(Qt.transparent)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.web_view)
+
+        # WebEngine 轻量化配置
+        settings = self.web_view.settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.ShowScrollBars, False)
+        profile = self.web_view.page().profile()
+        profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.MemoryHttpCache)
+        profile.setHttpCacheMaximumSize(10 * 1024 * 1024)
+
+        self.bridge = ExpandedBridge(self)
+        self.channel = QWebChannel(self.web_view.page())
+        self.channel.registerObject("pyisland", self.bridge)
+        self.web_view.page().setWebChannel(self.channel)
+
+        html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "expanded.html")
+        self.web_view.load(__import__('PySide6.QtCore', fromlist=['QUrl']).QUrl.fromLocalFile(html_path))
+        self.web_view.hide()
+
+        self.animation = QPropertyAnimation(self, b"geometry")
+        self.animation.setDuration(220)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+
+        self.content_timer = QTimer(self)
+        self.content_timer.setSingleShot(True)
+        self.content_timer.timeout.connect(self._show_web_content)
+
+        self._closing = False
+        self._opening = False
+
+    def open_from(self, source_rect: QRect) -> None:
+        self._closing = False
+        self._opening = True
+        self.content_timer.stop()
+        target_w, target_h = self.target_size
+        screen_geo = QApplication.primaryScreen().availableGeometry()
+        target_x = screen_geo.x() + (screen_geo.width() - target_w) // 2
+        target_y = max(screen_geo.y() + self.main_window.top_margin, source_rect.y())
+        self._target_rect = QRect(target_x, target_y, target_w, target_h)
+        start_w = max(source_rect.width(), 120)
+        start_h = max(source_rect.height(), 45)
+        start_x = self._target_rect.center().x() - start_w // 2
+        start_y = self._target_rect.center().y() - start_h // 2
+        self.setGeometry(QRect(start_x, start_y, start_w, start_h))
+        self.web_view.hide()
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self.content_timer.start(360)
+        QTimer.singleShot(80, self._start_open_animation)
+
+    def _start_open_animation(self) -> None:
+        if not self.isVisible() or self._closing:
+            return
+        self.animation.stop()
+        self.animation.setStartValue(self.geometry())
+        self.animation.setEndValue(self._target_rect)
+        self.animation.start()
+
+    def _show_web_content(self) -> None:
+        if not self.isVisible() or self._closing:
+            return
+        self.web_view.show()
+        self.web_view.page().runJavaScript(
+            "if (typeof window.playEntrance === 'function') { window.playEntrance(); }"
+        )
+        self._opening = False
+
+    def close_to_main(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        self.content_timer.stop()
+        self.animation.stop()
+        self.web_view.hide()
+        QTimer.singleShot(70, self._finish_close_to_main)
+
+    def _finish_close_to_main(self) -> None:
+        self.hide()
+        self.main_window.raise_()
+        self.main_window.activateWindow()
+        self._closing = False
+
+    def focusOutEvent(self, event) -> None:
+        super().focusOutEvent(event)
+        if not self._opening:
+            self.close_to_main()
+
+    def update_session_detail(self, session: Session) -> None:
+        """推送会话详情到前端"""
+        import json
+        events_data = []
+        for event in session.events[-20:]:
+            events_data.append({
+                "type": event.type,
+                "payload": event.payload,
+            })
+        data = {
+            "id": session.id,
+            "name": session.name,
+            "agent": session.agent,
+            "status": session.status,
+            "events": events_data,
+        }
+        js = f"if (typeof window.updateSessionDetail === 'function') window.updateSessionDetail({json.dumps(data, ensure_ascii=False)});"
+        self.web_view.page().runJavaScript(js)
 
 
 class IslandWindow(QWidget):
-    """Floating island window: frameless, always-on-top, solid background."""
+    """主窗口：透明置顶 + QWebEngine 承载前端页面（Python-island 风格）"""
 
     def __init__(
         self,
@@ -33,103 +195,101 @@ class IslandWindow(QWidget):
         self._agents: set[str] = set()
         self._sessions: dict[str, Session] = {}
 
-        self._setup_window()
-        self._setup_ui()
-        self._setup_connections()
-        self._setup_shortcuts()
+        self.small_size = (320, 45)
+        self.large_size = (320, 125)
+        self.top_margin = 16
+        self._hovered = False
+        self._native_fixed = False
 
-        self._config = ConfigManager(config_path="config/default.yaml")
-        self._theme = Theme()
-        self._setup_drawer()
-        self._apply_theme()
-        self._config.config_changed.connect(self._on_config_changed)
-
-    def _setup_window(self) -> None:
-        flags = (
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
+        self.base_flags = (
+            Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.NoDropShadowWindowHint
         )
-        self.setWindowFlags(flags)
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setWindowFlags(self.base_flags)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setStyleSheet("background: transparent; border: none;")
 
-        screen = QApplication.primaryScreen().availableGeometry()
-        self._max_panel_height = int(screen.height() * 0.6)
-        self._screen = screen
-        # 初始位置先按 400px 居中，后续 _resize_to_content 会重新校正
-        x = screen.x() + (screen.width() - 400) // 2
-        self.move(x, screen.y() + 12)
+        # Web 容器
+        self.web_view = QWebEngineView(self)
+        self.web_view.setContextMenuPolicy(Qt.NoContextMenu)
+        self.web_view.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.web_view.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.web_view.setStyleSheet("background: transparent; border: none;")
+        self.web_view.page().setBackgroundColor(Qt.transparent)
 
-        # MioIsland 风格阴影: 0 4px 24px rgba(0,0,0,0.7)
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(24)
-        shadow.setColor(QColor(0, 0, 0, 178))
-        shadow.setOffset(0, 4)
-        self.setGraphicsEffect(shadow)
+        # WebEngine 轻量化配置
+        settings = self.web_view.settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.ShowScrollBars, False)
+        profile = self.web_view.page().profile()
+        profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.MemoryHttpCache)
+        profile.setHttpCacheMaximumSize(10 * 1024 * 1024)
 
-    def _setup_ui(self) -> None:
-        palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor("#000000"))
-        self.setPalette(palette)
-        self.setAutoFillBackground(True)
-        # 全局移除 Qt 默认的焦点黄色外框（Linux 桌面常见）
-        self.setStyleSheet("QWidget { outline: none; }")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.web_view)
 
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(0)
+        # 注册 JS <-> Python 桥接
+        self.bridge = IslandBridge(self)
+        self.channel = QWebChannel(self.web_view.page())
+        self.channel.registerObject("pyisland", self.bridge)
+        self.web_view.page().setWebChannel(self.channel)
 
-        self._pill = CompactPill()
-        self._pill.setVisible(False)
-        self._layout.addWidget(self._pill, alignment=Qt.AlignmentFlag.AlignHCenter)
+        html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "island.html")
+        self.web_view.load(__import__('PySide6.QtCore', fromlist=['QUrl']).QUrl.fromLocalFile(html_path))
 
-        self._panel = ExpandedPanel()
-        self._panel.setVisible(False)
-        self._panel.setFixedHeight(0)
-        self._layout.addWidget(self._panel)
+        self.expanded_window = ExpandedWindow(self)
 
-        self.setMinimumWidth(200)
-        self.setMinimumHeight(48)
+        # 窗口几何动画
+        self.animation = QPropertyAnimation(self, b"geometry")
+        self.animation.setDuration(240)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
 
+        initial_rect = self._target_rect(*self.small_size)
+        self.setGeometry(initial_rect)
+
+        # 事件连接
+        self._event_source.event_received.connect(self._on_event)
+        self._state_machine.state_changed.connect(self._on_state_changed)
+
+        # 清理定时器
+        self.cleanup_timer = QTimer(self)
+        self.cleanup_timer.setSingleShot(True)
+        self.cleanup_timer.timeout.connect(self.compact_memory)
+
+        # 自动缩回
         self._leave_timer = QTimer(self)
         self._leave_timer.setSingleShot(True)
         self._leave_timer.timeout.connect(self._on_delayed_leave)
 
-        self._panel_anim: Optional[QVariantAnimation] = None
-
-        # 部分 Linux 桌面环境下 leaveEvent 不可靠，用轮询兜底
+        # 轮询兜底
         self._hover_timer = QTimer(self)
         self._hover_timer.timeout.connect(self._check_hover)
         self._hover_timer.start(100)
 
-        # 自动缩回计时器：审批弹开后 5s 自动收起
-        self._auto_collapse_timer = QTimer(self)
-        self._auto_collapse_timer.setSingleShot(True)
-        self._auto_collapse_timer.timeout.connect(self._on_auto_collapse)
+    def _target_rect(self, width: int, height: int) -> QRect:
+        screen = QApplication.primaryScreen()
+        screen_geo = screen.availableGeometry()
+        x = screen_geo.x() + (screen_geo.width() - width) // 2
+        y = screen_geo.y() + self.top_margin
+        return QRect(x, y, width, height)
 
-    def _setup_connections(self) -> None:
-        self._event_source.event_received.connect(self._on_event)
-        self._state_machine.state_changed.connect(self._on_state_changed)
-        self._pill.clicked.connect(self._on_pill_clicked)
-        self._pill.settings_clicked.connect(self._on_settings_clicked)
-        self._panel.session_selected.connect(self._on_session_clicked)
-        self._panel.session_hovered.connect(self._on_session_hovered)
+    def animate_to(self, width: int, height: int) -> None:
+        self.animation.stop()
+        self.animation.setStartValue(self.geometry())
+        self.animation.setEndValue(self._target_rect(width, height))
+        self.animation.start()
+        self.schedule_cleanup()
 
-    def _setup_shortcuts(self) -> None:
-        toggle = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
-        toggle.activated.connect(self._toggle_expand)
-
-        approve = QShortcut(QKeySequence("Ctrl+Y"), self)
-        approve.activated.connect(self._approve_first_permission)
-
-        deny = QShortcut(QKeySequence("Ctrl+N"), self)
-        deny.activated.connect(self._deny_first_permission)
-
-        esc = QShortcut(QKeySequence("Esc"), self)
-        esc.activated.connect(self._on_collapse)
-
-        debug = QShortcut(QKeySequence("Ctrl+D"), self)
-        debug.activated.connect(self._inject_test_event)
+    def set_hovered(self, hovered: bool) -> None:
+        if self._hovered == hovered:
+            return
+        self._hovered = hovered
+        target = self.large_size if hovered else self.small_size
+        self.animate_to(*target)
 
     # ------------------------------------------------------------------
     # Event handling
@@ -142,14 +302,11 @@ class IslandWindow(QWidget):
         if agent:
             self._agents.add(agent)
 
-        # Session lifecycle events
         if isinstance(event, SessionStarted):
             existing = self._sessions.get(event.session_id)
             if existing:
-                # 避免重复创建 Session 对象导致 UI 引用旧实例
                 existing.status = "running"
                 existing.add_event(event)
-                self._panel.update_session_item(existing)
             else:
                 session = Session(
                     id=event.session_id,
@@ -159,420 +316,126 @@ class IslandWindow(QWidget):
                     start_time=event.timestamp,
                 )
                 self._sessions[event.session_id] = session
-                self._panel.add_session_item(session)
-            self._update_pill()
+            self._push_sessions_to_web()
             return
 
         if isinstance(event, SessionEnded):
             session = self._sessions.get(event.session_id)
             if session:
-                # 标记为已完成，保留在列表中而不是删除
                 session.status = "completed"
                 session.add_event(event)
-                self._panel.update_session_item(session)
-            self._update_pill()
+            self._push_sessions_to_web()
             return
 
-        # Regular events: route to session or fallback to global cards
         session = self._sessions.get(event.session_id)
         if session:
             session.add_event(event)
-            self._panel.update_session_item(session)
 
-        card = CardFactory.create_card(event, self._panel)
-        if card:
-            # 已 resolved 的 permission 不再重复创建卡片
-            from island_ui.cards.permission_card import PermissionCard
-            from island_ui.cards.question_card import QuestionCard
-            if isinstance(card, PermissionCard):
-                tid = card.tool_use_id()
-                if session and session.is_permission_resolved(tid):
-                    card.deleteLater()
-                    return
-                card.responded.connect(
-                    lambda resp, tid=tid: self._on_permission_responded(tid, resp)
-                )
-                card.open_chat.connect(self._on_permission_open_chat)
-            elif isinstance(card, QuestionCard):
-                card.answered.connect(self._on_question_answered)
-            card.resolved.connect(self._on_card_resolved)
-            self._panel.add_event_card(card)
+        # 审批事件自动弹开
+        if event.type == "permission.requested":
+            self._auto_expand_for_permission(event.session_id)
 
-            # 有审批事件时自动弹开展示 5s
-            if isinstance(card, PermissionCard):
-                if self._state_machine.state() != IslandState.EXPANDED:
-                    self._state_machine.on_expand_requested()
-                self._auto_collapse_timer.stop()
-                self._auto_collapse_timer.start(5000)
+        self._push_sessions_to_web()
 
-        self._update_pill()
+    def _auto_expand_for_permission(self, session_id: str) -> None:
+        if not self.expanded_window.isVisible():
+            self.open_expanded_window()
+            self._leave_timer.stop()
+            self._leave_timer.start(5000)
 
-    def _update_pill(self) -> None:
+    def _push_sessions_to_web(self) -> None:
+        import json
+        sessions_data = []
+        for session in self._sessions.values():
+            last_event = session.last_event()
+            waiting_action = ""
+            if session.status == "needs_attention" and last_event and last_event.type == "permission.requested":
+                waiting_action = last_event.payload.get("action", "")
+            sessions_data.append({
+                "id": session.id,
+                "name": session.name,
+                "agent": session.agent,
+                "status": session.status,
+                "waiting_action": waiting_action,
+            })
+
         total = len(self._sessions)
         active = sum(1 for s in self._sessions.values() if s.status not in ("completed", "idle"))
         waiting = sum(1 for s in self._sessions.values() if s.status == "needs_attention")
 
-        # 第一个 waiting 会话的 action / 名称，用于 pill 直接展示
-        waiting_label = ""
-        for s in self._sessions.values():
-            if s.status == "needs_attention":
-                last = s.last_event()
-                if last and last.type == "permission.requested":
-                    waiting_label = last.payload.get("action", s.name)
-                else:
-                    waiting_label = s.name
-                if len(waiting_label) > 36:
-                    waiting_label = waiting_label[:33] + "..."
-                break
-
-        self._pill.set_count(waiting, active, total, waiting_label)
-        self._pill.set_agents(list(self._agents))
-
-    def _on_card_resolved(self, card) -> None:
-        self._update_pill()
-        # 真实模式下不要自动触发 on_all_resolved 清空会话
-        # 会话由轮询机制管理，只有 session 文件消失时才结束
-
-    def _on_permission_responded(self, tool_use_id: str, response) -> None:
-        """当用户在 UI 上点击 Allow/Deny 时，通过 socket 回传给 Claude Code。"""
-        if not tool_use_id:
-            return
-        decision = "allow" if getattr(response, "approved", False) else "deny"
-        if hasattr(self._event_source, "respond_to_permission"):
-            self._event_source.respond_to_permission(tool_use_id, decision)
-        # 标记该 permission 已处理，避免再次进入 detail view 时重复显示
-        session = self._sessions.get(response.session_id)
-        if session:
-            session.mark_permission_resolved(tool_use_id)
-            # 记录用户回复到聊天记录
-            user_text = "允许" if decision == "allow" else "拒绝"
-            session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
-            self._panel.update_session_item(session)
-            self._update_pill()
-
-    def _on_question_answered(self, response) -> None:
-        """当用户回答问题后，记录用户回复到聊天记录。"""
-        session = self._sessions.get(response.session_id)
-        if session:
-            session.add_event(
-                ChatMessage(session_id=session.id, role="user", content=response.answer)
-            )
-            self._panel.update_session_item(session)
-
-    def _on_permission_open_chat(self, session_id: str) -> None:
-        """当用户在 PermissionCard 上点击 Open Chat 时，展开并切换到会话详情。"""
-        if self._state_machine.state() != IslandState.EXPANDED:
-            self._state_machine.on_expand_requested()
-        self._show_session_detail(session_id)
+        data = {
+            "sessions": sessions_data,
+            "total": total,
+            "active": active,
+            "waiting": waiting,
+        }
+        js = f"if (typeof window.updateSessions === 'function') window.updateSessions({json.dumps(data, ensure_ascii=False)});"
+        self.web_view.page().runJavaScript(js)
 
     # ------------------------------------------------------------------
-    # Session selection → detail view
+    # User interactions from JS
     # ------------------------------------------------------------------
 
-    def _on_session_hovered(self, session_id: str) -> None:
-        """悬停会话项时由 SessionListItem 自身展开下方概要，此处无需额外操作。"""
-        pass
-
-    def _on_session_clicked(self, session_id: str) -> None:
-        """点击会话项时切换到详情视图。"""
-        if self._state_machine.state() != IslandState.EXPANDED:
-            self._state_machine.on_expand_requested()
-        self._show_session_detail(session_id)
-
-    def _show_session_detail(self, session_id: str) -> None:
+    def select_session(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if not session:
             return
-        self._panel.show_event_detail(session_id, session.name)
-        # 只显示最近 10 条事件，避免 detail view 过长
-        recent_events = session.events[-10:]
-        # Add session events as cards，跳过已 resolved 的 permission
-        for event in recent_events:
-            card = CardFactory.create_card(event, self._panel)
-            if not card:
-                continue
-            from island_ui.cards.permission_card import PermissionCard
-            if isinstance(card, PermissionCard):
-                tid = card.tool_use_id()
-                if session.is_permission_resolved(tid):
-                    card.deleteLater()
-                    continue
-                card.responded.connect(
-                    lambda resp, tid=tid: self._on_permission_responded(tid, resp)
-                )
-                card.open_chat.connect(self._on_permission_open_chat)
-            card.resolved.connect(self._on_card_resolved)
-            self._panel.add_event_card(card)
-        # 根据详情内容重新调整面板高度
-        if self._state_machine.state() == IslandState.EXPANDED:
-            self._animate_panel(self._calc_panel_height())
+        self.expanded_window.update_session_detail(session)
+        self.open_expanded_window()
+
+    def respond_permission(self, session_id: str, approved: bool) -> None:
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+        # 找到最近的 permission 事件
+        for event in reversed(session.events):
+            if event.type == "permission.requested":
+                tid = event.payload.get("tool_use_id", "")
+                if tid and hasattr(self._event_source, "respond_to_permission"):
+                    self._event_source.respond_to_permission(tid, "allow" if approved else "deny")
+                session.mark_permission_resolved(tid)
+                user_text = "允许" if approved else "拒绝"
+                session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
+                self._push_sessions_to_web()
+                break
+
+    def open_expanded_window(self) -> None:
+        if self.expanded_window.isVisible():
+            return
+        source_rect = self.geometry()
+        self.expanded_window.open_from(source_rect)
 
     # ------------------------------------------------------------------
-    # User interactions
+    # Hover / Leave
     # ------------------------------------------------------------------
-
-    def _on_pill_clicked(self) -> None:
-        # 仅保留为占位，当前由悬停/离开控制展开与收起
-        pass
-
-    def _toggle_expand(self) -> None:
-        if self._state_machine.state() == IslandState.EXPANDED:
-            self._state_machine.on_collapse_requested()
-        else:
-            self._state_machine.on_expand_requested()
-
-    def _on_collapse(self) -> None:
-        if self._drawer.isVisible():
-            self._hide_drawer()
-        else:
-            self._state_machine.on_collapse_requested()
-
-    def enterEvent(self, event) -> None:
-        self._leave_timer.stop()
-        if self._state_machine.state() == IslandState.COMPACT:
-            self._state_machine.on_expand_requested()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event) -> None:
-        if self._state_machine.state() == IslandState.EXPANDED and not self._leave_timer.isActive():
-            self._leave_timer.start(1000)
-        super().leaveEvent(event)
-
-    def _on_delayed_leave(self) -> None:
-        if self._state_machine.state() == IslandState.EXPANDED:
-            self._state_machine.on_collapse_requested()
-
-    def _on_auto_collapse(self) -> None:
-        """审批弹开 5s 后自动收起（仅当用户未悬停时）"""
-        if self._state_machine.state() == IslandState.EXPANDED:
-            widget = QApplication.widgetAt(QCursor.pos())
-            inside = widget is not None and (widget is self or self.isAncestorOf(widget))
-            if not inside:
-                self._state_machine.on_collapse_requested()
 
     def _check_hover(self) -> None:
-        """100ms 轮询鼠标是否在窗口内，作为 leaveEvent/enterEvent 的兜底."""
+        from PySide6.QtGui import QCursor
         widget = QApplication.widgetAt(QCursor.pos())
         inside = widget is not None and (widget is self or self.isAncestorOf(widget))
         if inside:
             self._leave_timer.stop()
-            if self._state_machine.state() == IslandState.COMPACT:
-                self._state_machine.on_expand_requested()
+            if not self._hovered:
+                self.set_hovered(True)
         else:
-            if self._state_machine.state() == IslandState.EXPANDED and not self._leave_timer.isActive():
+            if self._hovered and not self._leave_timer.isActive():
                 self._leave_timer.start(1000)
 
-    def _recenter_window(self) -> None:
-        """根据当前窗口宽度重新水平居中."""
-        x = self._screen.x() + (self._screen.width() - self.width()) // 2
-        x += self._config.get("island.position_offset_x", 0)
-        self.move(x, self.y())
+    def _on_delayed_leave(self) -> None:
+        if self._hovered:
+            self.set_hovered(False)
 
     # ------------------------------------------------------------------
-    # Drawer / Theme / Config
-    # ------------------------------------------------------------------
-
-    def _setup_drawer(self) -> None:
-        self._drawer = SettingsDrawer(self._config, self)
-        self._drawer.setVisible(False)
-        self._drawer.closed.connect(self._hide_drawer)
-        self._layout.insertWidget(1, self._drawer)
-
-    def _on_settings_clicked(self) -> None:
-        if self._drawer.isVisible():
-            self._hide_drawer()
-        else:
-            if self._state_machine.state() == IslandState.EXPANDED:
-                self._state_machine.on_collapse_requested()
-            self._show_drawer()
-
-    def _show_drawer(self) -> None:
-        self._drawer.setVisible(True)
-        self._drawer.setFixedHeight(0)
-        anim = QPropertyAnimation(self._drawer, b"maximumHeight", self)
-        anim.setDuration(250)
-        anim.setStartValue(0)
-        anim.setEndValue(self._drawer.maximumHeight())
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.start()
-
-    def _hide_drawer(self) -> None:
-        anim = QPropertyAnimation(self._drawer, b"maximumHeight", self)
-        anim.setDuration(200)
-        anim.setStartValue(self._drawer.height())
-        anim.setEndValue(0)
-        anim.setEasingCurve(QEasingCurve.Type.InCubic)
-        anim.finished.connect(lambda: self._drawer.setVisible(False))
-        anim.start()
-
-    def _on_config_changed(self, key: str, value) -> None:
-        if key == "theme.id" and value:
-            preset = ThemePreset[value.upper()] if hasattr(ThemePreset, value.upper()) else ThemePreset.DARK
-            self._theme.set_preset(preset)
-            self._apply_theme()
-        elif key.startswith("island.position_offset"):
-            self._reposition_window()
-
-    def _apply_theme(self) -> None:
-        colors = self._theme.current()
-        palette = self.palette()
-        palette.setColor(self.backgroundRole(), QColor(colors["window_bg"]))
-        self.setPalette(palette)
-        self._apply_notch_style(compact=(self._state_machine.state() == IslandState.COMPACT))
-        self._pill.refresh_theme(colors)
-        self._panel.refresh_theme(colors)
-        if hasattr(self, "_drawer"):
-            self._drawer.refresh_theme(colors)
-
-    def _apply_notch_style(self, compact: bool = True) -> None:
-        """根据状态应用 notch 圆角: compact 上 6/下 14, expanded 上 19/下 24."""
-        colors = self._theme.current()
-        if compact:
-            tl, tr, bl, br = 6, 6, 14, 14
-        else:
-            tl, tr, bl, br = 19, 19, 24, 24
-        self.setStyleSheet(f"""
-            QWidget {{
-                outline: none;
-                background-color: {colors['window_bg']};
-                border-top-left-radius: {tl}px;
-                border-top-right-radius: {tr}px;
-                border-bottom-left-radius: {bl}px;
-                border-bottom-right-radius: {br}px;
-            }}
-        """)
-
-    def _reposition_window(self) -> None:
-        screen = QApplication.primaryScreen().availableGeometry()
-        x = screen.x() + (screen.width() - 400) // 2 + self._config.get("island.position_offset_x", 0)
-        y = screen.y() + 12 + self._config.get("island.position_offset_y", 0)
-        self.move(x, y)
-
-    # ------------------------------------------------------------------
-    # State changes → UI updates
+    # State changes
     # ------------------------------------------------------------------
 
     def _on_state_changed(self, state: IslandState) -> None:
         if state == IslandState.IDLE:
-            self._set_idle_ui()
-        elif state == IslandState.COMPACT:
-            self._set_compact_ui()
-        elif state == IslandState.EXPANDED:
-            self._set_expanded_ui()
-
-    def _set_idle_ui(self) -> None:
-        # 真实模式下有活跃会话时不进入 IDLE，保持显示
-        if self._sessions:
-            self._set_compact_ui()
-            return
-        self._pill.setVisible(False)
-        self._panel.setVisible(False)
-        self._panel.setFixedHeight(0)
-        self._panel.clear_cards()
-        self._panel.clear_sessions()
-        self._agents.clear()
-        self._sessions.clear()
-        self._resize_to_content()
-
-    def _set_compact_ui(self) -> None:
-        self._pill.setVisible(True)
-        self._apply_notch_style(compact=True)
-        def _on_collapse_finished():
-            self._panel.setVisible(False)
-            self._panel.show_session_list()
-            self._panel.clear_cards()
-        self._animate_panel(0, on_finished=_on_collapse_finished)
-
-    def _calc_panel_height(self) -> int:
-        content_height = max(self._panel.minimumSizeHint().height(), self._panel.minimumHeight())
-        target = min(content_height, self._max_panel_height)
-        return max(target, 200)
-
-    def _set_expanded_ui(self) -> None:
-        self._pill.setVisible(True)
-        self._panel.setVisible(True)
-        self._panel.show_session_list()
-        self._apply_notch_style(compact=False)
-        self._animate_panel(self._calc_panel_height())
-
-    def _animate_panel(self, target_height: int, on_finished=None) -> None:
-        if self._panel.height() == target_height:
-            if on_finished:
-                on_finished()
-            self._resize_to_content()
-            return
-
-        # 停止可能正在运行的旧动画
-        if self._panel_anim is not None:
-            self._panel_anim.stop()
-            self._panel_anim.deleteLater()
-            self._panel_anim = None
-
-        # 解除固定高度约束，让逐帧 setFixedHeight 能生效
-        self._panel.setMinimumHeight(0)
-        self._panel.setMaximumHeight(self._panel.maximumSize().height())
-
-        start_height = self._panel.height()
-        anim = QVariantAnimation(self)
-        self._panel_anim = anim
-        # MioIsland spring 动画模拟
-        # Open: response 0.42s, dampingFraction 0.8 -> OutBack 模拟回弹
-        # Close: response 0.45s, dampingFraction 1.0 -> OutCubic 顺滑收起
-        expanding = target_height > start_height
-        anim.setDuration(420 if expanding else 200)
-        anim.setEasingCurve(
-            QEasingCurve.Type.OutBack if expanding else QEasingCurve.Type.InCubic
-        )
-        anim.setStartValue(start_height)
-        anim.setEndValue(target_height)
-
-        def _on_value_changed(value):
-            self._panel.setFixedHeight(int(value))
-            self._resize_to_content()
-
-        def _on_anim_finished():
-            if self._panel_anim is not anim:
+            if self._sessions:
                 return
-            self._panel.setFixedHeight(target_height)
-            self._panel_anim = None
-            if on_finished:
-                on_finished()
-            self._resize_to_content()
-
-        anim.valueChanged.connect(_on_value_changed)
-        anim.finished.connect(_on_anim_finished)
-        anim.start()
-
-    def _resize_to_content(self) -> None:
-        self._layout.invalidate()
-        self._layout.activate()
-        old_width = self.width()
-        self.adjustSize()
-        if self.width() != old_width:
-            self._recenter_window()
-
-    # ------------------------------------------------------------------
-    # Shortcuts helpers
-    # ------------------------------------------------------------------
-
-    def _approve_first_permission(self) -> None:
-        from island_ui.cards.permission_card import PermissionCard
-        for card in self._panel.cards():
-            if isinstance(card, PermissionCard) and not card.is_resolved():
-                card._on_allow()
-                return
-
-    def _deny_first_permission(self) -> None:
-        from island_ui.cards.permission_card import PermissionCard
-        for card in self._panel.cards():
-            if isinstance(card, PermissionCard) and not card.is_resolved():
-                card._on_deny()
-                return
-
-    def _inject_test_event(self) -> None:
-        from island_ui.events import PermissionRequested
-        event = PermissionRequested(action="Test injection from debug mode")
-        self._event_source.inject_event(event)
+            self._sessions.clear()
+            self._agents.clear()
+        # Web 前端自己管理展开/收起状态，此处无需额外操作
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -585,3 +448,11 @@ class IslandWindow(QWidget):
     def stop(self) -> None:
         self._event_source.stop()
         self.close()
+
+    def schedule_cleanup(self) -> None:
+        self.cleanup_timer.start(800)
+
+    def compact_memory(self) -> None:
+        import gc
+        gc.collect()
+        self.web_view.page().runJavaScript("if (window.gc) { window.gc(); }")
