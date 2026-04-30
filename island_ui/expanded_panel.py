@@ -25,7 +25,7 @@ class ExpandedPanel(QWidget):
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(380)
 
         # ── Session List View ──
         self._session_list_widget = QWidget()
@@ -67,7 +67,7 @@ class ExpandedPanel(QWidget):
         self._detail_layout.addWidget(self._back_btn)
 
         self._detail_title = QLabel("")
-        self._detail_title.setStyleSheet("font-size: 14px; color: #eeeeee; font-weight: 500;")
+        self._detail_title.setStyleSheet("font-size: 14px; color: #eeeeee; font-weight: 600;")
         self._detail_layout.addWidget(self._detail_title)
 
         self._cards_container = QWidget()
@@ -214,7 +214,10 @@ class ExpandedPanel(QWidget):
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: {bg};
-                border-radius: 24px;
+                border-top-left-radius: 19px;
+                border-top-right-radius: 19px;
+                border-bottom-left-radius: 24px;
+                border-bottom-right-radius: 24px;
                 border: none;
             }}
             QScrollArea {{
