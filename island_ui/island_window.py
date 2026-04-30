@@ -6,8 +6,8 @@ from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QObject
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
-from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget, QSystemTrayIcon, QMenu
+from PySide6.QtGui import QColor, QIcon, QAction, QPixmap, QPainter
 
 from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.event_source import EventSource
@@ -303,6 +303,9 @@ class IslandWindow(QWidget):
         self._hover_timer.timeout.connect(self._check_hover)
         self._hover_timer.start(100)
 
+        # 系统托盘
+        self._setup_tray()
+
     def _target_rect(self, width: int, height: int) -> QRect:
         screen = QApplication.primaryScreen()
         screen_geo = screen.availableGeometry()
@@ -577,7 +580,67 @@ class IslandWindow(QWidget):
 
     def stop(self) -> None:
         self._event_source.stop()
+        if hasattr(self, "_tray_icon") and self._tray_icon is not None:
+            self._tray_icon.hide()
         self.close()
+
+    # ------------------------------------------------------------------
+    # System Tray
+    # ------------------------------------------------------------------
+
+    def _setup_tray(self) -> None:
+        """初始化系统托盘图标和右键菜单。"""
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        self._tray_icon = QSystemTrayIcon(self)
+        self._tray_icon.setIcon(self._create_tray_icon())
+        self._tray_icon.setToolTip("Deepin AI Island")
+        self._tray_icon.activated.connect(self._on_tray_activated)
+
+        menu = QMenu(self)
+        show_action = QAction("显示", self)
+        show_action.triggered.connect(self._toggle_visibility)
+        menu.addAction(show_action)
+
+        menu.addSeparator()
+
+        quit_action = QAction("退出", self)
+        quit_action.triggered.connect(self._quit_app)
+        menu.addAction(quit_action)
+
+        self._tray_icon.setContextMenu(menu)
+        self._tray_icon.show()
+
+    def _create_tray_icon(self) -> QIcon:
+        """生成一个简单的 tray 图标，不依赖外部文件。"""
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setBrush(QColor(202, 255, 0))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(4, 4, 56, 56, 16, 16)
+        painter.setPen(QColor(0, 0, 0))
+        painter.setFont(QApplication.font())
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, "AI")
+        painter.end()
+        return QIcon(pixmap)
+
+    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        if reason == QSystemTrayIcon.Trigger:
+            self._toggle_visibility()
+
+    def _toggle_visibility(self) -> None:
+        if self.isVisible():
+            self.hide()
+            self.expanded_window.hide()
+        else:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
+    def _quit_app(self) -> None:
+        self.stop()
+        QApplication.instance().quit()
 
     def schedule_cleanup(self) -> None:
         self.cleanup_timer.start(800)
