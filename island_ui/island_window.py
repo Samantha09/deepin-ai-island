@@ -2,7 +2,7 @@ import os
 import sys
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QObject, Signal, Slot, QRect
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QObject, Signal, Slot, QRect, QUrl
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -13,7 +13,6 @@ from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.event_source import EventSource
 from island_ui.events import Event, SessionStarted, SessionEnded, ChatMessage
 from island_ui.session import Session
-from island_ui.card_factory import CardFactory
 
 
 class IslandBridge(QObject):
@@ -88,7 +87,7 @@ class ExpandedWindow(QWidget):
         self.web_view.page().setWebChannel(self.channel)
 
         html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "expanded.html")
-        self.web_view.load(__import__('PySide6.QtCore', fromlist=['QUrl']).QUrl.fromLocalFile(html_path))
+        self.web_view.load(QUrl.fromLocalFile(html_path))
         self.web_view.hide()
 
         self.animation = QPropertyAnimation(self, b"geometry")
@@ -239,7 +238,7 @@ class IslandWindow(QWidget):
         self.web_view.page().setWebChannel(self.channel)
 
         html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "island.html")
-        self.web_view.load(__import__('PySide6.QtCore', fromlist=['QUrl']).QUrl.fromLocalFile(html_path))
+        self.web_view.load(QUrl.fromLocalFile(html_path))
 
         self.expanded_window = ExpandedWindow(self)
 

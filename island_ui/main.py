@@ -8,6 +8,15 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
+# QWebEngine / Chromium 兼容性配置（参考 Python-island）
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+    "--disable-gpu-compositing "
+    "--renderer-process-limit=1 "
+    "--disable-extensions "
+    "--no-sandbox "
+    "--js-flags='--max-old-space-size=128 --expose-gc'"
+)
+
 
 def _fix_qt_platform() -> None:
     """Deepin/DDE 桌面默认要求 dxcb 插件，但虚拟环境 PySide6 通常没有。
@@ -45,6 +54,7 @@ def _fix_qt_platform() -> None:
 _fix_qt_platform()
 
 import yaml
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 
@@ -89,6 +99,8 @@ def main():
     island_cfg = config.get("island", {})
     debug_cfg = config.get("debug", {})
 
+    # 使用软件 OpenGL 渲染，避免部分 Linux 驱动兼容问题
+    QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL)
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     # 全局移除 Qt 默认焦点外框（Linux 桌面常见黄色/橙色轮廓）
