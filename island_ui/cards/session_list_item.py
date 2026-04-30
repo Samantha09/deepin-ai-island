@@ -56,11 +56,11 @@ class SessionListItem(QFrame):
         self._middle_layout.setSpacing(2)
 
         self._name_label = QLabel(self._session.name)
-        self._name_label.setStyleSheet("font-size: 13px; color: #ffffff; font-weight: 500;")
+        self._name_label.setStyleSheet("font-size: 14px; color: #FFFFFF; font-weight: 600;")
         self._middle_layout.addWidget(self._name_label)
 
         self._desc_label = QLabel("")
-        self._desc_label.setStyleSheet("font-size: 10px; color: #8e8e93;")
+        self._desc_label.setStyleSheet("font-size: 11px; color: #9A9A9A;")
         self._desc_label.setWordWrap(True)
         self._middle_layout.addWidget(self._desc_label)
         self._refresh_desc()
@@ -110,16 +110,16 @@ class SessionListItem(QFrame):
     def _setup_style(self) -> None:
         self.setStyleSheet("""
             QFrame {
-                background-color: #0c0f14;
+                background-color: #1A1A1A;
                 border-radius: 16px;
-                border: 1px solid rgba(255,255,255,0.03);
+                border: 1px solid #2A2A2A;
             }
             QFrame:hover {
-                background-color: #141820;
-                border: 1px solid rgba(255,255,255,0.07);
+                background-color: #2A2A2A;
+                border: 1px solid #3A3A3A;
             }
             QFrame:pressed {
-                background-color: #1a1f26;
+                background-color: #333333;
             }
         """)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -132,16 +132,16 @@ class SessionListItem(QFrame):
         color = colors.get(key, colors.get("secondary_text", "#8e8e93"))
         self._dot.setStyleSheet(f"color: {color}; font-size: 10px;")
         self._name_label.setStyleSheet(
-            f"font-size: 13px; color: {colors['primary_text']}; font-weight: 500;"
+            f"font-size: 14px; color: {colors['primary_text']}; font-weight: 600;"
         )
         self._desc_label.setStyleSheet(
-            f"font-size: 10px; color: {colors['secondary_text']};"
+            f"font-size: 11px; color: {colors['secondary_text']};"
         )
         self._expand_label.setStyleSheet("background: transparent; border: none;")
         self._tags_label.setText(self._build_tags(colors))
-        press_bg = colors.get("control_bg_hover", "#3a3a3c")
-        card_border = colors.get("card_border", "rgba(255,255,255,0.03)")
-        card_border_hover = colors.get("card_border_hover", "rgba(255,255,255,0.07)")
+        press_bg = colors.get("control_bg_hover", "#2A2A2A")
+        card_border = colors.get("card_border", "#2A2A2A")
+        card_border_hover = colors.get("card_border_hover", "#3A3A3A")
         self.setStyleSheet(
             f"QFrame {{"
             f"  background-color: {colors['card_bg']};"
@@ -223,24 +223,12 @@ class SessionListItem(QFrame):
         selected = dialogue_lines[-4:] if len(dialogue_lines) >= 2 else lines[-4:]
 
         if not selected:
-            return '<div style="text-align: center; color: #76818d; font-size: 11px; padding: 8px 0;">暂无聊天记录</div>'
+            return '<div style="text-align: center; color: #666666; font-size: 13px; padding: 8px 0;">暂无聊天记录</div>'
 
-        # 颜色配置（参考 VibeAgentIsland）
-        agent_colors = {
-            "claude code": "#d28d80",
-            "codex": "#8ab8d4",
-            "gemini": "#b3a6ff",
-            "cursor": "#8ee7cf",
-            "opencode": "#ffc58d",
-        }
-        agent_key = self._session.agent.lower()
-        role_color = agent_colors.get(agent_key, "#d28d80")  # 默认暖色
-        user_color = "#f1d8b8"
-        assistant_text_color = "#8f98a2"
-        completed_text_color = "#d7efe3"
-        system_speaker_color = "#97a2ad"
-        system_text_color = "#76818d"
-        is_completed = self._session.status == "completed"
+        # 颜色配置（参考 MioIsland classic 主题）
+        user_color = "#D1D5DB"
+        assistant_color = "#FFFFFF"
+        system_color = "#9A9A9A"
 
         html_parts = []
         for role, text, kind in selected:
@@ -248,17 +236,17 @@ class SessionListItem(QFrame):
                 text = text[:57] + "..."
             if kind == "user":
                 rc = user_color
-                tc = "#e5d9cb"
+                tc = user_color
             elif kind == "system":
-                rc = system_speaker_color
-                tc = system_text_color
+                rc = system_color
+                tc = system_color
             else:
-                rc = role_color
-                tc = completed_text_color if is_completed else assistant_text_color
+                rc = assistant_color
+                tc = assistant_color
 
             html_parts.append(
-                f'<div style="margin: 1px 0; font-size: 10px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
-                f'<span style="color: {rc}; font-weight: bold; letter-spacing: 0.2px;">{role}:</span>'
+                f'<div style="margin: 2px 0; font-size: 13px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'
+                f'<span style="color: {rc}; font-weight: 600; letter-spacing: 0.2px;">{role}:</span>'
                 f'<span style="color: {tc}; margin-left: 6px;">{text}</span>'
                 f'</div>'
             )

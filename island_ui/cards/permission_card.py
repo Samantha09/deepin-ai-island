@@ -87,9 +87,13 @@ class PermissionCard(EventCard):
 
     def refresh_theme(self, colors: dict[str, str]) -> None:
         self._colors = colors
-        accent = colors.get("accent_amber", "#ffb300")
-        primary = colors.get("primary_text", "#eeeeee")
-        secondary = colors.get("secondary_text", "#eeeeee")
+        accent = colors.get("accent_amber", "#F59E0B")
+        primary = colors.get("primary_text", "#FFFFFF")
+        secondary = colors.get("secondary_text", "#9A9A9A")
+        overlay = colors.get("card_bg", "#1A1A1A")
+        border = colors.get("card_border", "#2A2A2A")
+        allow_bg = colors.get("accent_green", "#4ADE80")
+        inverse = colors.get("inverse_text", "#000000")
 
         self._dot.setStyleSheet(f"color: {accent}; font-size: 10px;")
         self._title.setStyleSheet(
@@ -116,20 +120,36 @@ class PermissionCard(EventCard):
                 f"font-size: 11px; color: {secondary};"
             )
         self._chat_btn.refresh_theme(colors)
-        self._deny_btn.refresh_theme(colors)
-        # Allow 按钮保持白底黑字的高对比度
+        # Deny 按钮：MioIsland 风格 — overlay 背景 + border 描边
+        self._deny_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {overlay};
+                color: {primary};
+                border: 1px solid {border};
+                border-radius: 10px;
+                padding: 8px 14px;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {colors.get('card_bg_hover', '#2A2A2A')};
+                border: 1px solid {colors.get('card_border_hover', '#3A3A3A')};
+            }}
+        """)
+        # Allow 按钮：MioIsland 风格 — 绿色填充 + 黑字
         self._allow_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {colors.get('primary_text', '#ffffff')};
-                color: {colors.get('inverse_text', '#000000')};
+                background-color: {allow_bg};
+                color: {inverse};
                 border: none;
-                border-radius: 8px;
+                border-radius: 10px;
                 padding: 8px 14px;
-                font-size: 12px;
+                font-size: 13px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {colors.get('secondary_text', '#cccccc')};
+                background-color: {colors.get('accent_allow', '#4ADE80')};
+                opacity: 0.9;
             }}
         """)
 

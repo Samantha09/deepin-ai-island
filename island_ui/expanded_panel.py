@@ -52,10 +52,15 @@ class ExpandedPanel(QWidget):
         self._back_btn = QPushButton("←  Back")
         self._back_btn.setStyleSheet("""
             QPushButton {
+                background-color: transparent;
+                color: #9A9A9A;
                 border: none;
                 font-size: 13px;
                 padding: 4px;
                 text-align: left;
+            }
+            QPushButton:hover {
+                color: #FFFFFF;
             }
         """)
         self._back_btn.clicked.connect(self._on_back)
@@ -239,7 +244,7 @@ class ExpandedPanel(QWidget):
         self._session_scroll.viewport().setStyleSheet(f"background-color: {bg};")
         self._detail_scroll.viewport().setStyleSheet(f"background-color: {bg};")
         self._detail_title.setStyleSheet(
-            f"font-size: 14px; color: {primary}; font-weight: 500;"
+            f"font-size: 14px; color: {primary}; font-weight: 600;"
         )
         self._back_btn.setStyleSheet(f"""
             QPushButton {{

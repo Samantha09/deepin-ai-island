@@ -24,9 +24,9 @@ class EventCard(QFrame):
     def _setup_style(self) -> None:
         self.setStyleSheet("""
             QFrame {
-                background-color: #0c0f14;
+                background-color: #1A1A1A;
                 border-radius: 16px;
-                border: 1px solid rgba(255,255,255,0.03);
+                border: 1px solid #2A2A2A;
             }
         """)
         self.setMinimumWidth(320)
@@ -34,11 +34,11 @@ class EventCard(QFrame):
 
     def set_content(self, title: str, body: str) -> None:
         self._title_label = QLabel(title)
-        self._title_label.setStyleSheet("font-size: 10px; color: #8e8e93;")
+        self._title_label.setStyleSheet("font-size: 11px; color: #9A9A9A;")
         self._layout.addWidget(self._title_label)
 
         self._body_label = QLabel(body)
-        self._body_label.setStyleSheet("font-size: 13px; color: #ffffff;")
+        self._body_label.setStyleSheet("font-size: 13px; color: #FFFFFF;")
         self._body_label.setWordWrap(True)
         self._layout.addWidget(self._body_label)
 
@@ -63,7 +63,7 @@ class EventCard(QFrame):
     def refresh_theme(self, colors: dict[str, str]) -> None:
         """Apply theme colors to card."""
         self._colors = colors
-        card_border = colors.get("card_border", "#ffffff08")
+        card_border = colors.get("card_border", "#2A2A2A")
         self.setStyleSheet(
             f"QFrame {{"
             f"  background-color: {colors['card_bg']};"
@@ -73,7 +73,7 @@ class EventCard(QFrame):
         )
         if hasattr(self, "_title_label"):
             self._title_label.setStyleSheet(
-                f"font-size: 10px; color: {colors['secondary_text']};"
+                f"font-size: 11px; color: {colors['secondary_text']};"
             )
         if hasattr(self, "_body_label"):
             self._body_label.setStyleSheet(
