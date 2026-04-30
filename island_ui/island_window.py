@@ -459,6 +459,9 @@ class IslandWindow(QWidget):
                 session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
                 self._push_sessions_to_web()
                 break
+        # 审批完成后立即缩回 expanded 窗口
+        if self.expanded_window.isVisible():
+            self.expanded_window.close_to_main()
 
     def open_expanded_window(self) -> None:
         if self.expanded_window.isVisible():
