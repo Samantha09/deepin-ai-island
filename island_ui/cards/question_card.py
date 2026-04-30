@@ -76,7 +76,7 @@ class QuestionCard(EventCard):
                     background-color: {control_bg};
                     color: {primary};
                     border: none;
-                    border-radius: 8px;
+                    border-radius: 10px;
                     padding: 8px 12px;
                     font-size: 13px;
                 }}
