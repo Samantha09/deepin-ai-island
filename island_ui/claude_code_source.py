@@ -509,8 +509,9 @@ class ClaudeCodeEventSource(EventSource):
             )
 
         if event_name == "PermissionRequest":
-            tool = payload.get("tool", "Unknown")
-            tool_input = payload.get("tool_input", {})
+            # tool 可能在顶层 data 中（tool_name / tool），也可能在 payload 中
+            tool = payload.get("tool") or data.get("tool_name") or data.get("tool") or "Unknown"
+            tool_input = payload.get("tool_input") or data.get("tool_input") or {}
             action = self._format_action(tool, tool_input)
             return PermissionRequested(
                 session_id=session_id,
