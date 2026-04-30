@@ -195,7 +195,7 @@ class IslandWindow(QWidget):
         self._sessions: dict[str, Session] = {}
 
         self.small_size = (320, 45)
-        self.large_size = (320, 125)
+        self.large_size = (320, 320)
         self.top_margin = 16
         self._hovered = False
         self._native_fixed = False
@@ -346,10 +346,15 @@ class IslandWindow(QWidget):
         import json
         sessions_data = []
         for session in self._sessions.values():
-            last_event = session.last_event()
             waiting_action = ""
-            if session.status == "needs_attention" and last_event and last_event.type == "permission.requested":
-                waiting_action = last_event.payload.get("action", "")
+            if session.status == "needs_attention":
+                # 查找最近的未解决 permission 事件
+                for event in reversed(session.events):
+                    if event.type == "permission.requested":
+                        tid = event.payload.get("tool_use_id", "")
+                        if not session.is_permission_resolved(tid):
+                            waiting_action = event.payload.get("action", "")
+                            break
             sessions_data.append({
                 "id": session.id,
                 "name": session.name,
