@@ -573,7 +573,7 @@
           allowAllBtn.addEventListener("click", function (e) {
             e.stopPropagation();
             if (bridge) {
-              bridge.respondPermissionAll(session.id, true);
+              bridge.allowAllPermission(session.id, session.waiting_action);
             }
             card.style.opacity = "0.5";
             card.style.pointerEvents = "none";

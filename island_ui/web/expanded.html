@@ -327,7 +327,7 @@
       allowAllBtn.textContent = "允许所有";
       allowAllBtn.addEventListener("click", function () {
         if (bridge) {
-          bridge.respondPermissionAll(currentSessionId, true);
+          bridge.allowAllPermission(currentSessionId, action);
         }
         document.querySelectorAll(".permission-card").forEach(function (c) {
           c.style.opacity = "0.5";

@@ -40,6 +40,10 @@ class IslandBridge(QObject):
     def respondPermissionAll(self, session_id: str, approved: bool) -> None:
         self.window.respond_permission_all(session_id, approved)
 
+    @Slot(str, str)
+    def allowAllPermission(self, session_id: str, action: str) -> None:
+        self.window.allow_all_permission(session_id, action)
+
     @Slot(str)
     def closeSession(self, session_id: str) -> None:
         self.window.close_session(session_id)
@@ -71,6 +75,10 @@ class ExpandedBridge(QObject):
     @Slot(str, bool)
     def respondPermissionAll(self, session_id: str, approved: bool) -> None:
         self.window.main_window.respond_permission_all(session_id, approved)
+
+    @Slot(str, str)
+    def allowAllPermission(self, session_id: str, action: str) -> None:
+        self.window.main_window.allow_all_permission(session_id, action)
 
 
 class ExpandedWindow(QWidget):
@@ -240,6 +248,8 @@ class IslandWindow(QWidget):
         self._auto_approve = self._load_auto_approve_config()
         # 按会话的自动批准开关状态
         self._session_auto_approve: dict[str, bool] = {}
+        # allow-all 规则列表：同类请求自动允许
+        self._allow_all_rules: list[dict] = []
 
         self.base_flags = (
             Qt.FramelessWindowHint
@@ -360,6 +370,63 @@ class IslandWindow(QWidget):
             cmd_token = cmd.split()[0] if cmd else ""
             return cmd_token in rule
         return False
+
+    def _match_allow_all_rule(self, action: str) -> bool:
+        """检查 action 是否命中 allow-all 规则。"""
+        parts = action.split(":", 1)
+        tool = parts[0].strip() if parts else ""
+        cmd = parts[1].strip() if len(parts) > 1 else ""
+        for rule in self._allow_all_rules:
+            if rule.get("tool") != tool:
+                continue
+            if tool == "Bash":
+                cmd_token = cmd.split()[0] if cmd else ""
+                if rule.get("cmd_token") == cmd_token:
+                    return True
+            elif tool in ("Read", "Edit", "Write", "MultiEdit"):
+                if rule.get("path") == cmd:
+                    return True
+            else:
+                if rule.get("pattern") == cmd:
+                    return True
+        return False
+
+    def allow_all_permission(self, session_id: str, action: str) -> None:
+        """允许当前请求，并将同类请求加入自动允许规则。"""
+        parts = action.split(":", 1)
+        tool = parts[0].strip() if parts else ""
+        cmd = parts[1].strip() if len(parts) > 1 else ""
+        rule: dict = {"tool": tool}
+        if tool == "Bash":
+            cmd_token = cmd.split()[0] if cmd else ""
+            rule["cmd_token"] = cmd_token
+        elif tool in ("Read", "Edit", "Write", "MultiEdit"):
+            rule["path"] = cmd
+        else:
+            rule["pattern"] = cmd
+        # 去重
+        if rule not in self._allow_all_rules:
+            self._allow_all_rules.append(rule)
+
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+        # 批量允许当前会话中所有同类的待处理请求
+        resolved_any = False
+        for event in list(session.events):
+            if event.type == "permission.requested":
+                event_action = event.payload.get("action", "")
+                if self._match_allow_all_rule(event_action):
+                    tid = event.payload.get("tool_use_id", "")
+                    if tid and hasattr(self._event_source, "respond_to_permission"):
+                        self._event_source.respond_to_permission(tid, "allow")
+                    session.mark_permission_resolved(tid)
+                    resolved_any = True
+        if resolved_any:
+            session.add_event(ChatMessage(session_id=session.id, role="user", content="允许所有"))
+            self._push_sessions_to_web()
+        if self.expanded_window.isVisible():
+            self.expanded_window.close_to_main()
 
     def _auto_respond_permission(self, session: Session, event: Event) -> None:
         tid = event.payload.get("tool_use_id", "")
@@ -510,6 +577,11 @@ class IslandWindow(QWidget):
                 except Exception as exc:
                     import logging
                     logging.getLogger(__name__).error("插件 %s on_permission_requested 失败: %s", plugin.name, exc)
+
+            # 检查 allow-all 规则（同类请求自动允许）
+            if session and self._match_allow_all_rule(action):
+                self._auto_respond_permission(session, event)
+                return
 
             if session and self._should_auto_approve(session.id, action):
                 self._auto_respond_permission(session, event)
