@@ -13,6 +13,8 @@ from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.event_source import EventSource
 from island_ui.events import Event, SessionStarted, SessionEnded, ChatMessage
 from island_ui.session import Session
+from island_ui.plugin import IslandPlugin
+from island_ui import plugin_loader
 
 
 class IslandBridge(QObject):
@@ -315,6 +317,9 @@ class IslandWindow(QWidget):
         # 系统托盘
         self._setup_tray()
 
+        # 插件系统
+        self._plugins: list[IslandPlugin] = []
+
     @staticmethod
     def _load_auto_approve_config() -> dict:
         import yaml
@@ -411,6 +416,14 @@ class IslandWindow(QWidget):
     def _on_event(self, event: Event) -> None:
         self._state_machine.on_event_arrived()
 
+        # 插件事件钩子
+        for plugin in self._plugins:
+            try:
+                plugin.on_event(event)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).error("插件 %s on_event 失败: %s", plugin.name, exc)
+
         agent = event.payload.get("agent")
         if agent:
             self._agents.add(agent)
@@ -429,6 +442,12 @@ class IslandWindow(QWidget):
                     start_time=event.timestamp,
                 )
                 self._sessions[event.session_id] = session
+                for plugin in self._plugins:
+                    try:
+                        plugin.on_session_started(session)
+                    except Exception as exc:
+                        import logging
+                        logging.getLogger(__name__).error("插件 %s on_session_started 失败: %s", plugin.name, exc)
             self._push_sessions_to_web()
             return
 
@@ -437,6 +456,12 @@ class IslandWindow(QWidget):
             if session:
                 session.status = "completed"
                 session.add_event(event)
+                for plugin in self._plugins:
+                    try:
+                        plugin.on_session_ended(session)
+                    except Exception as exc:
+                        import logging
+                        logging.getLogger(__name__).error("插件 %s on_session_ended 失败: %s", plugin.name, exc)
             self._push_sessions_to_web()
             return
 
@@ -454,9 +479,30 @@ class IslandWindow(QWidget):
         if session:
             session.add_event(event)
 
-        # 审批事件：先检查自动批准，不满足再弹窗
+        # 审批事件：先插件拦截，再检查自动批准，不满足再弹窗
         if event.type == "permission.requested":
             action = event.payload.get("action", "")
+            # 插件权限拦截
+            for plugin in self._plugins:
+                try:
+                    decision = plugin.on_permission_requested(session.id if session else "", action, event)
+                    if decision == "allow":
+                        if session:
+                            self._auto_respond_permission(session, event)
+                        self._push_sessions_to_web()
+                        return
+                    elif decision == "deny":
+                        tid = event.payload.get("tool_use_id", "")
+                        if tid and hasattr(self._event_source, "respond_to_permission"):
+                            self._event_source.respond_to_permission(tid, "deny")
+                        if session:
+                            session.mark_permission_resolved(tid)
+                        self._push_sessions_to_web()
+                        return
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).error("插件 %s on_permission_requested 失败: %s", plugin.name, exc)
+
             if session and self._should_auto_approve(session.id, action):
                 self._auto_respond_permission(session, event)
                 return
@@ -644,6 +690,14 @@ class IslandWindow(QWidget):
     def start(self) -> None:
         self._event_source.start()
         self.show()
+        # 加载插件
+        self._plugins = plugin_loader.load_plugins(self)
+        for plugin in self._plugins:
+            try:
+                plugin.on_ui_ready(self)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).error("插件 %s on_ui_ready 失败: %s", plugin.name, exc)
 
     def stop(self) -> None:
         self._event_source.stop()
