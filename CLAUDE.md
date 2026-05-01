@@ -54,6 +54,7 @@ Deepin AI Island — PySide6 (Qt6), Python 3.12+
 
 - **技术栈**：PySide6 (Qt6)，Python 3.12+，YAML 配置，虚拟环境 `.venv/`
 - **运行**：`source .venv/bin/activate && python island_ui/main.py`
+- **`.claude/` 目录**：Claude Code 本地配置目录，**必须**加入 `.gitignore`，禁止提交到仓库
 - **注释语言**：代码注释、文档字符串（docstring）使用中文
 - **Commit 语言**：Commit message 的描述部分使用中文（类型/范围仍遵循 Conventional Commits 英文规范）
 - **架构细节**、**类说明**、**样式规范**、**Phase 2 Hook 架构**、**扩展指南**、**快捷键**见 memory: `project-overview.md`
