@@ -106,6 +106,48 @@
       color: rgba(255, 255, 255, 0.95);
     }
 
+    /* 自动批准开关 */
+    #auto-approve-btn {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 140ms ease;
+      margin-right: 4px;
+    }
+    #auto-approve-btn.active {
+      background: rgba(52, 199, 89, 0.2);
+      color: #4ADE80;
+    }
+    #auto-approve-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    #auto-approve-btn.active:hover {
+      background: rgba(52, 199, 89, 0.3);
+    }
+
+    /* 自动批准标识 */
+    .auto-approved-badge {
+      font-size: 9px;
+      font-weight: 700;
+      color: #4ADE80;
+      background: rgba(52, 199, 89, 0.12);
+      border-radius: 4px;
+      padding: 1px 4px;
+      white-space: nowrap;
+      margin-left: 6px;
+    }
+
     /* 悬停展开面板 */
     #session-panel {
       display: block;
@@ -309,6 +351,7 @@
       <div id="status-row">
         <div id="status-dot" class="status-dot idle"></div>
         <div id="center-info">AI Island</div>
+        <button id="auto-approve-btn" type="button" aria-label="auto approve" title="自动批准">A</button>
         <button id="settings-btn" type="button" aria-label="settings">⋯</button>
       </div>
       <div id="session-panel">
@@ -330,6 +373,7 @@
     const centerInfo = document.getElementById("center-info");
     const sessionList = document.getElementById("session-list");
     const settingsBtn = document.getElementById("settings-btn");
+    const autoApproveBtn = document.getElementById("auto-approve-btn");
 
     // 建立 QWebChannel
     new QWebChannel(qt.webChannelTransport, function (channel) {
@@ -359,11 +403,26 @@
       }
     });
 
+    // 自动批准按钮点击
+    autoApproveBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (bridge) bridge.toggleAutoApprove();
+    });
+
     // 设置按钮点击
     settingsBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       if (bridge) bridge.openExpandedWindow();
     });
+
+    // 更新自动批准按钮状态
+    window.updateAutoApprove = function (enabled) {
+      if (enabled) {
+        autoApproveBtn.classList.add("active");
+      } else {
+        autoApproveBtn.classList.remove("active");
+      }
+    };
 
     // 更新会话数据
     window.updateSessions = function (data) {
@@ -427,6 +486,13 @@
 
         left.appendChild(dot);
         left.appendChild(name);
+
+        if (session.auto_approved) {
+          const badge = document.createElement("span");
+          badge.className = "auto-approved-badge";
+          badge.textContent = "自动批准";
+          left.appendChild(badge);
+        }
 
         row.appendChild(left);
 

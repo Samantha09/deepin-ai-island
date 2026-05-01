@@ -3,8 +3,15 @@ import argparse
 import os
 from pathlib import Path
 
+def _get_base_dir() -> str:
+    """获取项目根目录，兼容 PyInstaller 打包环境。"""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 # Add project root to path for imports
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_project_root = _get_base_dir()
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
@@ -66,7 +73,7 @@ from island_ui.island_window import IslandWindow
 
 def load_config(path: str = None) -> dict:
     if path is None:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        base = _get_base_dir()
         path = os.path.join(base, "config", "default.yaml")
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
