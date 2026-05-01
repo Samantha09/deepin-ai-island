@@ -36,6 +36,10 @@ class IslandBridge(QObject):
     def respondPermission(self, session_id: str, approved: bool) -> None:
         self.window.respond_permission(session_id, approved)
 
+    @Slot(str, bool)
+    def respondPermissionAll(self, session_id: str, approved: bool) -> None:
+        self.window.respond_permission_all(session_id, approved)
+
     @Slot(str)
     def closeSession(self, session_id: str) -> None:
         self.window.close_session(session_id)
@@ -611,18 +615,41 @@ class IslandWindow(QWidget):
         session = self._sessions.get(session_id)
         if not session:
             return
-        # 找到最近的 permission 事件
+        # 找到最近的未解决 permission 事件
         for event in reversed(session.events):
             if event.type == "permission.requested":
                 tid = event.payload.get("tool_use_id", "")
-                if tid and hasattr(self._event_source, "respond_to_permission"):
-                    self._event_source.respond_to_permission(tid, "allow" if approved else "deny")
-                session.mark_permission_resolved(tid)
-                user_text = "允许" if approved else "拒绝"
-                session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
-                self._push_sessions_to_web()
-                break
+                if not session.is_permission_resolved(tid):
+                    if tid and hasattr(self._event_source, "respond_to_permission"):
+                        self._event_source.respond_to_permission(tid, "allow" if approved else "deny")
+                    session.mark_permission_resolved(tid)
+                    user_text = "允许" if approved else "拒绝"
+                    session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
+                    self._push_sessions_to_web()
+                    break
         # 审批完成后立即缩回 expanded 窗口
+        if self.expanded_window.isVisible():
+            self.expanded_window.close_to_main()
+
+    def respond_permission_all(self, session_id: str, approved: bool) -> None:
+        """批量响应当前会话所有未解决的权限请求。"""
+        self._permission_auto_close_timer.stop()
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+        resolved_any = False
+        for event in list(session.events):
+            if event.type == "permission.requested":
+                tid = event.payload.get("tool_use_id", "")
+                if not session.is_permission_resolved(tid):
+                    if tid and hasattr(self._event_source, "respond_to_permission"):
+                        self._event_source.respond_to_permission(tid, "allow" if approved else "deny")
+                    session.mark_permission_resolved(tid)
+                    resolved_any = True
+        if resolved_any:
+            user_text = "允许所有" if approved else "拒绝所有"
+            session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
+            self._push_sessions_to_web()
         if self.expanded_window.isVisible():
             self.expanded_window.close_to_main()
 
