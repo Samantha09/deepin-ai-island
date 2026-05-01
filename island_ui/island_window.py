@@ -386,8 +386,8 @@ class IslandWindow(QWidget):
                 if rule.get("cmd_token") == cmd_token:
                     return True
             elif tool in ("Read", "Edit", "Write", "MultiEdit"):
-                if rule.get("path") == cmd:
-                    return True
+                # 允许所有同类文件操作（不限定具体路径）
+                return True
             else:
                 if rule.get("pattern") == cmd:
                     return True
