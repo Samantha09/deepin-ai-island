@@ -360,16 +360,20 @@ class IslandWindow(QWidget):
         return QRect(x, y, width, height)
 
     def animate_to(self, width: int, height: int) -> None:
-        target_rect = self._target_rect(width, height)
+        current_geo = self.geometry()
+        target_y = self._target_rect(width, height).y()
+        # 保持水平中心不变，避免宽度变化时视觉左移
+        target_x = current_geo.center().x() - width // 2
+        target_rect = QRect(target_x, target_y, width, height)
         # 如果已经在目标尺寸，不启动动画
-        if self.geometry() == target_rect:
+        if current_geo == target_rect:
             return
         # 如果当前动画正在向同一目标运行，不重启动画
         if self.animation.state() == QPropertyAnimation.State.Running and self._anim_target == (width, height):
             return
         self._anim_target = (width, height)
         self.animation.stop()
-        self.animation.setStartValue(self.geometry())
+        self.animation.setStartValue(current_geo)
         self.animation.setEndValue(target_rect)
         self.animation.start()
         self.schedule_cleanup()
