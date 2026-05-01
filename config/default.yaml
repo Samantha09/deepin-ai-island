@@ -9,3 +9,41 @@ theme:
   id: dark
 debug:
   mock_events_enabled: true
+auto_approve:
+  enabled: true
+  tools:
+    Read: true
+    Bash:
+      - ls
+      - pwd
+      - cat
+      - echo
+      - head
+      - tail
+      - grep
+      - find
+      - ps
+      - date
+      - whoami
+      - hostname
+      - id
+      - which
+      - type
+      - stat
+      - file
+      - dirname
+      - basename
+      - readlink
+      - realpath
+      - uname
+      - env
+      - printenv
+      - cd
+      - touch
+      - mkdir
+      - rmdir
+      - rm
+      - cp
+      - mv
+      - chmod
+      - chown

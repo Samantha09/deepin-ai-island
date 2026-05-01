@@ -222,6 +222,9 @@ class IslandWindow(QWidget):
         self._native_fixed = False
         self._expanded_open = False
 
+        # 自动批准配置
+        self._auto_approve = self._load_auto_approve_config()
+
         self.base_flags = (
             Qt.FramelessWindowHint
             | Qt.WindowStaysOnTopHint
@@ -305,6 +308,49 @@ class IslandWindow(QWidget):
 
         # 系统托盘
         self._setup_tray()
+
+    @staticmethod
+    def _load_auto_approve_config() -> dict:
+        import yaml
+        cfg: dict = {}
+        try:
+            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            path = os.path.join(base, "config", "default.yaml")
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            cfg = data.get("auto_approve", {})
+        except Exception:
+            pass
+        return cfg
+
+    def _should_auto_approve(self, action: str) -> bool:
+        if not self._auto_approve.get("enabled", False):
+            return False
+        rules = self._auto_approve.get("tools", {})
+        if not rules:
+            return False
+        # action 格式如 "Bash: ls -la" 或 "Read: /path"
+        parts = action.split(":", 1)
+        tool = parts[0].strip() if parts else ""
+        cmd = parts[1].strip() if len(parts) > 1 else ""
+        rule = rules.get(tool)
+        if rule is True:
+            return True
+        if isinstance(rule, list):
+            # 取命令第一个 token 做匹配
+            cmd_token = cmd.split()[0] if cmd else ""
+            return cmd_token in rule
+        return False
+
+    def _auto_respond_permission(self, session: Session, event: Event) -> None:
+        tid = event.payload.get("tool_use_id", "")
+        if tid and hasattr(self._event_source, "respond_to_permission"):
+            self._event_source.respond_to_permission(tid, "allow")
+        session.mark_permission_resolved(tid)
+        session.add_event(
+            ChatMessage(session_id=session.id, role="user", content="自动批准")
+        )
+        self._push_sessions_to_web()
 
     def _target_rect(self, width: int, height: int) -> QRect:
         screen = QApplication.primaryScreen()
@@ -393,8 +439,12 @@ class IslandWindow(QWidget):
         if session:
             session.add_event(event)
 
-        # 审批事件自动弹开
+        # 审批事件：先检查自动批准，不满足再弹窗
         if event.type == "permission.requested":
+            action = event.payload.get("action", "")
+            if session and self._should_auto_approve(action):
+                self._auto_respond_permission(session, event)
+                return
             self._auto_expand_for_permission(event.session_id)
 
         self._push_sessions_to_web()
