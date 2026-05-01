@@ -498,6 +498,32 @@ class IslandWindow(QWidget):
                     return
                 except Exception:
                     pass
+        # 3.5 通过会话名称或工作目录搜索已有终端窗口
+        xdotool = shutil.which("xdotool")
+        if xdotool:
+            search_terms = []
+            if session.name:
+                search_terms.append(session.name)
+            if session.terminal and session.terminal != os.path.expanduser("~"):
+                search_terms.append(os.path.basename(session.terminal))
+                search_terms.append(session.terminal)
+            for term in search_terms:
+                try:
+                    result = subprocess.run(
+                        [xdotool, "search", "--name", term],
+                        capture_output=True, text=True, timeout=3.0
+                    )
+                    if result.returncode == 0:
+                        wids = result.stdout.strip().split()
+                        if wids:
+                            subprocess.run(
+                                [xdotool, "windowactivate", wids[0]],
+                                check=True, capture_output=True, timeout=3.0
+                            )
+                            return
+                except Exception:
+                    pass
+
         # 4. 兜底：启动新终端并 cd 到工作目录
         terminal_emulators = [
             "deepin-terminal", "gnome-terminal", "konsole", "alacritty",
