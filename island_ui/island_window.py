@@ -216,7 +216,7 @@ class IslandWindow(QWidget):
         self._sessions: dict[str, Session] = {}
 
         self.small_size = (320, 45)
-        self.large_size = (320, 320)
+        self.large_size = (380, 320)
         self.top_margin = 16
         self._hovered = False
         self._native_fixed = False
