@@ -17,8 +17,51 @@ SOCKET_PATH = "/tmp/ai-island.sock"
 PERMISSION_TIMEOUT = 86400
 
 
+def _get_terminal_env() -> dict:
+    """获取终端环境信息（tmux、窗口标题等），用于 AI Island 跳转终端。"""
+    env = {}
+    # tmux 信息
+    tmux = os.environ.get("TMUX", "")
+    if tmux:
+        env["tmux_socket"] = tmux
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["tmux", "display-message", "-p", "#S"],
+                capture_output=True, text=True, timeout=1.0
+            )
+            if result.returncode == 0:
+                env["tmux_session"] = result.stdout.strip()
+        except Exception:
+            pass
+    # 终端窗口信息
+    window_id = os.environ.get("WINDOWID", "")
+    if window_id:
+        env["window_id"] = window_id
+    # 尝试获取窗口标题
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["xdotool", "getactivewindow", "getwindowname"],
+            capture_output=True, text=True, timeout=1.0
+        )
+        if result.returncode == 0:
+            env["window_title"] = result.stdout.strip()
+    except Exception:
+        pass
+    return env
+
+
 def send_event_and_wait(data: dict) -> dict:
     """通过 Unix Socket 发送事件，PermissionRequest 时等待响应。"""
+    # 补充终端环境信息到 payload
+    if "payload" in data and isinstance(data["payload"], dict):
+        data["payload"].update(_get_terminal_env())
+    elif "payload" not in data:
+        data["payload"] = _get_terminal_env()
+    else:
+        data["payload"] = {**_get_terminal_env(), "original": data["payload"]}
+
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.settimeout(5.0)
 

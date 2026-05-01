@@ -56,6 +56,10 @@ class IslandBridge(QObject):
     def toggleSessionAutoApprove(self, session_id: str) -> None:
         self.window.toggle_session_auto_approve(session_id)
 
+    @Slot(str)
+    def jumpToTerminal(self, session_id: str) -> None:
+        self.window.jump_to_terminal(session_id)
+
 
 class ExpandedBridge(QObject):
     """JS -> Python 桥接对象（展开窗口）"""
@@ -430,6 +434,92 @@ class IslandWindow(QWidget):
         self._session_auto_approve[session_id] = not current
         self._push_sessions_to_web()
 
+    @staticmethod
+    def _update_session_terminal(session: Session, payload: dict) -> None:
+        """从事件 payload 中更新 session 的终端环境信息。"""
+        if payload.get("tmux_session"):
+            session.tmux_session = payload["tmux_session"]
+        if payload.get("tmux_socket"):
+            session.tmux_socket = payload["tmux_socket"]
+        if payload.get("window_id"):
+            session.window_id = payload["window_id"]
+        if payload.get("window_title"):
+            session.window_title = payload["window_title"]
+
+    def jump_to_terminal(self, session_id: str) -> None:
+        """跳转到会话所在的终端（tmux → 窗口聚焦 → 启动新终端）。"""
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+        import shutil
+        import subprocess
+        # 1. 优先尝试 tmux
+        if session.tmux_session:
+            tmux_cmd = ["tmux", "switch-client", "-t", session.tmux_session]
+            if session.tmux_socket:
+                tmux_cmd.insert(1, "-S")
+                tmux_cmd.insert(2, session.tmux_socket)
+            try:
+                subprocess.run(tmux_cmd, check=True, capture_output=True, timeout=3.0)
+                return
+            except Exception:
+                pass
+        # 2. 尝试通过窗口 ID 聚焦（xdotool）
+        if session.window_id:
+            xdotool = shutil.which("xdotool")
+            if xdotool:
+                try:
+                    subprocess.run(
+                        [xdotool, "windowactivate", session.window_id],
+                        check=True, capture_output=True, timeout=3.0
+                    )
+                    return
+                except Exception:
+                    pass
+        # 3. 尝试通过窗口标题聚焦（wmctrl 或 xdotool）
+        if session.window_title:
+            wmctrl = shutil.which("wmctrl")
+            if wmctrl:
+                try:
+                    subprocess.run(
+                        [wmctrl, "-a", session.window_title],
+                        check=True, capture_output=True, timeout=3.0
+                    )
+                    return
+                except Exception:
+                    pass
+            xdotool = shutil.which("xdotool")
+            if xdotool:
+                try:
+                    subprocess.run(
+                        [xdotool, "search", "--name", session.window_title, "windowactivate"],
+                        check=True, capture_output=True, timeout=3.0
+                    )
+                    return
+                except Exception:
+                    pass
+        # 4. 兜底：启动新终端并 cd 到工作目录
+        terminal_emulators = [
+            "deepin-terminal", "gnome-terminal", "konsole", "alacritty",
+            "x-terminal-emulator", "xfce4-terminal", "terminator"
+        ]
+        for term in terminal_emulators:
+            term_path = shutil.which(term)
+            if term_path:
+                cwd = session.terminal if session.terminal else os.path.expanduser("~")
+                try:
+                    if term == "gnome-terminal":
+                        subprocess.Popen([term_path, "--working-directory", cwd])
+                    elif term == "konsole":
+                        subprocess.Popen([term_path, "--workdir", cwd])
+                    elif term == "alacritty":
+                        subprocess.Popen([term_path, "--working-directory", cwd])
+                    else:
+                        subprocess.Popen([term_path], cwd=cwd)
+                    return
+                except Exception:
+                    pass
+
     def _target_rect(self, width: int, height: int) -> QRect:
         screen = QApplication.primaryScreen()
         screen_geo = screen.availableGeometry()
@@ -503,6 +593,7 @@ class IslandWindow(QWidget):
                     terminal=event.payload.get("terminal", "Terminal"),
                     start_time=event.timestamp,
                 )
+                self._update_session_terminal(session, event.payload)
                 self._sessions[event.session_id] = session
                 for plugin in self._plugins:
                     try:
@@ -537,9 +628,12 @@ class IslandWindow(QWidget):
                 terminal=event.payload.get("terminal", ""),
                 start_time=event.timestamp,
             )
+            self._update_session_terminal(session, event.payload)
             self._sessions[event.session_id] = session
         if session:
             session.add_event(event)
+            # 更新终端环境信息（hook 脚本可能发送了新的 tmux/window 信息）
+            self._update_session_terminal(session, event.payload)
 
         # 审批事件：先插件拦截，再检查自动批准，不满足再弹窗
         if event.type == "permission.requested":
@@ -646,6 +740,9 @@ class IslandWindow(QWidget):
                 "waiting_action": waiting_action,
                 "summary": self._build_session_summary(session),
                 "auto_approved": auto_approved,
+                "tmux_session": session.tmux_session,
+                "window_id": session.window_id,
+                "window_title": session.window_title,
             })
 
         total = len(self._sessions)

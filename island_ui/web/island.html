@@ -472,7 +472,7 @@
         const card = document.createElement("div");
         card.className = "session-card";
         card.addEventListener("click", function () {
-          if (bridge) bridge.selectSession(session.id);
+          if (bridge) bridge.jumpToTerminal(session.id);
         });
 
         const row = document.createElement("div");

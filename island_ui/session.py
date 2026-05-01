@@ -16,6 +16,11 @@ class Session:
     status: str = "running"  # running, idle, completed, needs_attention
     events: list[Event] = field(default_factory=list)
     resolved_tool_use_ids: set[str] = field(default_factory=set)
+    # 终端跳转信息（由 hook 脚本提供）
+    tmux_session: str = ""
+    tmux_socket: str = ""
+    window_id: str = ""
+    window_title: str = ""
 
     def is_permission_resolved(self, tool_use_id: str) -> bool:
         return tool_use_id in self.resolved_tool_use_ids
