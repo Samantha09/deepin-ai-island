@@ -371,12 +371,14 @@ class IslandWindow(QWidget):
             return cmd_token in rule
         return False
 
-    def _match_allow_all_rule(self, action: str) -> bool:
-        """检查 action 是否命中 allow-all 规则。"""
+    def _match_allow_all_rule(self, session_id: str, action: str) -> bool:
+        """检查 action 是否命中当前会话的 allow-all 规则。"""
         parts = action.split(":", 1)
         tool = parts[0].strip() if parts else ""
         cmd = parts[1].strip() if len(parts) > 1 else ""
         for rule in self._allow_all_rules:
+            if rule.get("session_id") != session_id:
+                continue
             if rule.get("tool") != tool:
                 continue
             if tool == "Bash":
@@ -392,11 +394,11 @@ class IslandWindow(QWidget):
         return False
 
     def allow_all_permission(self, session_id: str, action: str) -> None:
-        """允许当前请求，并将同类请求加入自动允许规则。"""
+        """允许当前请求，并将当前会话的同类请求加入自动允许规则。"""
         parts = action.split(":", 1)
         tool = parts[0].strip() if parts else ""
         cmd = parts[1].strip() if len(parts) > 1 else ""
-        rule: dict = {"tool": tool}
+        rule: dict = {"session_id": session_id, "tool": tool}
         if tool == "Bash":
             cmd_token = cmd.split()[0] if cmd else ""
             rule["cmd_token"] = cmd_token
@@ -416,7 +418,7 @@ class IslandWindow(QWidget):
         for event in list(session.events):
             if event.type == "permission.requested":
                 event_action = event.payload.get("action", "")
-                if self._match_allow_all_rule(event_action):
+                if self._match_allow_all_rule(session_id, event_action):
                     tid = event.payload.get("tool_use_id", "")
                     if tid and hasattr(self._event_source, "respond_to_permission"):
                         self._event_source.respond_to_permission(tid, "allow")
@@ -579,7 +581,7 @@ class IslandWindow(QWidget):
                     logging.getLogger(__name__).error("插件 %s on_permission_requested 失败: %s", plugin.name, exc)
 
             # 检查 allow-all 规则（同类请求自动允许）
-            if session and self._match_allow_all_rule(action):
+            if session and self._match_allow_all_rule(session.id, action):
                 self._auto_respond_permission(session, event)
                 return
 
