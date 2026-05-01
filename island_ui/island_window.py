@@ -353,23 +353,8 @@ class IslandWindow(QWidget):
         return cfg
 
     def _should_auto_approve(self, session_id: str, action: str) -> bool:
-        if not self._session_auto_approve.get(session_id, False):
-            return False
-        rules = self._auto_approve.get("tools", {})
-        if not rules:
-            return False
-        # action 格式如 "Bash: ls -la" 或 "Read: /path"
-        parts = action.split(":", 1)
-        tool = parts[0].strip() if parts else ""
-        cmd = parts[1].strip() if len(parts) > 1 else ""
-        rule = rules.get(tool)
-        if rule is True:
-            return True
-        if isinstance(rule, list):
-            # 取命令第一个 token 做匹配
-            cmd_token = cmd.split()[0] if cmd else ""
-            return cmd_token in rule
-        return False
+        """检查会话是否开启了自动批准（开启后所有请求均自动放行）。"""
+        return self._session_auto_approve.get(session_id, False)
 
     def _match_allow_all_rule(self, session_id: str, action: str) -> bool:
         """检查 action 是否命中当前会话的 allow-all 规则。"""
