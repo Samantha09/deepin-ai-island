@@ -42,9 +42,9 @@ class IslandBridge(QObject):
     def openExpandedWindow(self) -> None:
         self.window.open_expanded_window()
 
-    @Slot()
-    def toggleAutoApprove(self) -> None:
-        self.window.toggle_auto_approve()
+    @Slot(str)
+    def toggleSessionAutoApprove(self, session_id: str) -> None:
+        self.window.toggle_session_auto_approve(session_id)
 
 
 class ExpandedBridge(QObject):
@@ -226,9 +226,10 @@ class IslandWindow(QWidget):
         self._native_fixed = False
         self._expanded_open = False
 
-        # 自动批准配置
+        # 自动批准配置（规则）
         self._auto_approve = self._load_auto_approve_config()
-        self._auto_approve_enabled = self._auto_approve.get("enabled", False)
+        # 按会话的自动批准开关状态
+        self._session_auto_approve: dict[str, bool] = {}
 
         self.base_flags = (
             Qt.FramelessWindowHint
@@ -328,8 +329,8 @@ class IslandWindow(QWidget):
             pass
         return cfg
 
-    def _should_auto_approve(self, action: str) -> bool:
-        if not self._auto_approve_enabled:
+    def _should_auto_approve(self, session_id: str, action: str) -> bool:
+        if not self._session_auto_approve.get(session_id, False):
             return False
         rules = self._auto_approve.get("tools", {})
         if not rules:
@@ -357,14 +358,10 @@ class IslandWindow(QWidget):
         )
         self._push_sessions_to_web()
 
-    def toggle_auto_approve(self) -> None:
-        self._auto_approve_enabled = not self._auto_approve_enabled
-        self._push_auto_approve_status()
-
-    def _push_auto_approve_status(self) -> None:
-        import json
-        js = f"if (typeof window.updateAutoApprove === 'function') window.updateAutoApprove({json.dumps(self._auto_approve_enabled)});"
-        self.web_view.page().runJavaScript(js)
+    def toggle_session_auto_approve(self, session_id: str) -> None:
+        current = self._session_auto_approve.get(session_id, False)
+        self._session_auto_approve[session_id] = not current
+        self._push_sessions_to_web()
 
     def _target_rect(self, width: int, height: int) -> QRect:
         screen = QApplication.primaryScreen()
@@ -460,7 +457,7 @@ class IslandWindow(QWidget):
         # 审批事件：先检查自动批准，不满足再弹窗
         if event.type == "permission.requested":
             action = event.payload.get("action", "")
-            if session and self._should_auto_approve(action):
+            if session and self._should_auto_approve(session.id, action):
                 self._auto_respond_permission(session, event)
                 return
             self._auto_expand_for_permission(event.session_id)
@@ -527,10 +524,7 @@ class IslandWindow(QWidget):
                         if not session.is_permission_resolved(tid):
                             waiting_action = event.payload.get("action", "")
                             break
-            auto_approved = any(
-                e.type == "chat.message" and e.payload.get("content") == "自动批准"
-                for e in session.events
-            )
+            auto_approved = self._session_auto_approve.get(session.id, False)
             sessions_data.append({
                 "id": session.id,
                 "name": session.name,
@@ -650,8 +644,6 @@ class IslandWindow(QWidget):
     def start(self) -> None:
         self._event_source.start()
         self.show()
-        # 页面加载完成后推送初始自动批准状态
-        QTimer.singleShot(500, self._push_auto_approve_status)
 
     def stop(self) -> None:
         self._event_source.stop()

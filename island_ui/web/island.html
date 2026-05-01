@@ -56,6 +56,7 @@
       align-items: center;
       justify-content: space-between;
       box-sizing: border-box;
+      position: relative;
     }
 
     /* 状态点 */
@@ -71,17 +72,20 @@
     .status-dot.waiting { background: #F59E0B; }
     .status-dot.error { background: #EF4444; }
 
-    /* 中间信息 */
+    /* 中间信息 — 绝对居中，不受左右元素宽度影响 */
     #center-info {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
       font-size: 13px;
       font-weight: 500;
       color: rgba(255, 255, 255, 0.9);
       text-align: center;
-      flex: 1;
-      min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: calc(100% - 80px);
       padding: 0 8px;
     }
 
@@ -104,36 +108,6 @@
     #settings-btn:hover {
       background: rgba(255, 255, 255, 0.1);
       color: rgba(255, 255, 255, 0.95);
-    }
-
-    /* 自动批准开关 */
-    #auto-approve-btn {
-      width: 22px;
-      height: 22px;
-      padding: 0;
-      border: none;
-      border-radius: 50%;
-      background: transparent;
-      color: rgba(255, 255, 255, 0.35);
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 140ms ease;
-      margin-right: 4px;
-    }
-    #auto-approve-btn.active {
-      background: rgba(52, 199, 89, 0.2);
-      color: #4ADE80;
-    }
-    #auto-approve-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: rgba(255, 255, 255, 0.8);
-    }
-    #auto-approve-btn.active:hover {
-      background: rgba(52, 199, 89, 0.3);
     }
 
     /* 自动批准标识 */
@@ -233,6 +207,40 @@
     }
     .session-close-btn:hover svg {
       fill: #EF4444;
+    }
+    /* 会话卡片上的自动批准按钮 */
+    .session-auto-btn {
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-left: 4px;
+      opacity: 0;
+      transition: opacity 140ms ease;
+    }
+    .session-card:hover .session-auto-btn {
+      opacity: 1;
+    }
+    .session-auto-btn.active {
+      background: rgba(52, 199, 89, 0.2);
+      color: #4ADE80;
+    }
+    .session-auto-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .session-auto-btn.active:hover {
+      background: rgba(52, 199, 89, 0.3);
     }
     .session-name {
       font-size: 12px;
@@ -351,7 +359,6 @@
       <div id="status-row">
         <div id="status-dot" class="status-dot idle"></div>
         <div id="center-info">AI Island</div>
-        <button id="auto-approve-btn" type="button" aria-label="auto approve" title="自动批准">A</button>
         <button id="settings-btn" type="button" aria-label="settings">⋯</button>
       </div>
       <div id="session-panel">
@@ -373,7 +380,6 @@
     const centerInfo = document.getElementById("center-info");
     const sessionList = document.getElementById("session-list");
     const settingsBtn = document.getElementById("settings-btn");
-    const autoApproveBtn = document.getElementById("auto-approve-btn");
 
     // 建立 QWebChannel
     new QWebChannel(qt.webChannelTransport, function (channel) {
@@ -403,26 +409,11 @@
       }
     });
 
-    // 自动批准按钮点击
-    autoApproveBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      if (bridge) bridge.toggleAutoApprove();
-    });
-
     // 设置按钮点击
     settingsBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       if (bridge) bridge.openExpandedWindow();
     });
-
-    // 更新自动批准按钮状态
-    window.updateAutoApprove = function (enabled) {
-      if (enabled) {
-        autoApproveBtn.classList.add("active");
-      } else {
-        autoApproveBtn.classList.remove("active");
-      }
-    };
 
     // 更新会话数据
     window.updateSessions = function (data) {
@@ -495,6 +486,17 @@
         }
 
         row.appendChild(left);
+
+        const autoBtn = document.createElement("button");
+        autoBtn.className = "session-auto-btn" + (session.auto_approved ? " active" : "");
+        autoBtn.type = "button";
+        autoBtn.textContent = "A";
+        autoBtn.title = "自动批准";
+        autoBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (bridge) bridge.toggleSessionAutoApprove(session.id);
+        });
+        row.appendChild(autoBtn);
 
         const closeBtn = document.createElement("button");
         closeBtn.className = "session-close-btn";
