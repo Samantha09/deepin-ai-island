@@ -326,6 +326,13 @@
     .quick-allow:hover {
       background: rgba(52, 199, 89, 1);
     }
+    .quick-allow-all {
+      background: rgba(52, 199, 89, 0.55);
+      color: #000000;
+    }
+    .quick-allow-all:hover {
+      background: rgba(52, 199, 89, 0.75);
+    }
 
     /* 底部提示 */
     #hover-hint {
@@ -552,7 +559,7 @@
 
           const allowBtn = document.createElement("button");
           allowBtn.className = "quick-allow";
-          allowBtn.textContent = "允许";
+          allowBtn.textContent = "允许一次";
           allowBtn.addEventListener("click", function (e) {
             e.stopPropagation();
             if (bridge) bridge.respondPermission(session.id, true);
@@ -560,8 +567,22 @@
             card.style.pointerEvents = "none";
           });
 
+          const allowAllBtn = document.createElement("button");
+          allowAllBtn.className = "quick-allow-all";
+          allowAllBtn.textContent = "允许所有";
+          allowAllBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (bridge) {
+              bridge.toggleSessionAutoApprove(session.id);
+              bridge.respondPermission(session.id, true);
+            }
+            card.style.opacity = "0.5";
+            card.style.pointerEvents = "none";
+          });
+
           permRow.appendChild(denyBtn);
           permRow.appendChild(allowBtn);
+          permRow.appendChild(allowAllBtn);
           card.appendChild(permRow);
         }
 
