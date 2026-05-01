@@ -170,6 +170,13 @@
     .perm-btn-allow:hover {
       background: rgba(52, 199, 89, 1);
     }
+    .perm-btn-allow-all {
+      background: rgba(52, 199, 89, 0.55);
+      color: #000000;
+    }
+    .perm-btn-allow-all:hover {
+      background: rgba(52, 199, 89, 0.75);
+    }
 
     /* 空状态 */
     .empty-detail {
@@ -308,15 +315,29 @@
 
       const allowBtn = document.createElement("button");
       allowBtn.className = "perm-btn perm-btn-allow";
-      allowBtn.textContent = "允许";
+      allowBtn.textContent = "允许一次";
       allowBtn.addEventListener("click", function () {
         respond(toolUseId, true);
         card.style.opacity = "0.5";
         card.style.pointerEvents = "none";
       });
 
+      const allowAllBtn = document.createElement("button");
+      allowAllBtn.className = "perm-btn perm-btn-allow-all";
+      allowAllBtn.textContent = "允许所有";
+      allowAllBtn.addEventListener("click", function () {
+        if (bridge) {
+          bridge.respondPermissionAll(currentSessionId, true);
+        }
+        document.querySelectorAll(".permission-card").forEach(function (c) {
+          c.style.opacity = "0.5";
+          c.style.pointerEvents = "none";
+        });
+      });
+
       buttons.appendChild(denyBtn);
       buttons.appendChild(allowBtn);
+      buttons.appendChild(allowAllBtn);
 
       card.appendChild(title);
       card.appendChild(actionText);

@@ -68,6 +68,10 @@ class ExpandedBridge(QObject):
     def respondPermission(self, session_id: str, approved: bool) -> None:
         self.window.main_window.respond_permission(session_id, approved)
 
+    @Slot(str, bool)
+    def respondPermissionAll(self, session_id: str, approved: bool) -> None:
+        self.window.main_window.respond_permission_all(session_id, approved)
+
 
 class ExpandedWindow(QWidget):
     """展开面板窗口：承载详情页面"""
