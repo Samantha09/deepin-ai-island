@@ -81,6 +81,20 @@
     .status-dot.waiting { background: #F59E0B; }
     .status-dot.error { background: #EF4444; }
 
+    @keyframes breathe {
+      0%, 100% {
+        opacity: 0.55;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 1.0;
+        transform: scale(1.25);
+      }
+    }
+    .status-dot.active {
+      animation: breathe 1.2s ease-in-out infinite;
+    }
+
     /* 中间信息 */
     #center-info {
       flex: 0 0 auto;
@@ -272,7 +286,10 @@
       flex-shrink: 0;
       margin-right: 6px;
     }
-    .session-status-dot.running { background: #66E8F8; }
+    .session-status-dot.running {
+      background: #66E8F8;
+      animation: breathe 1.2s ease-in-out infinite;
+    }
     .session-status-dot.needs_attention { background: #F59E0B; }
     .session-status-dot.completed { background: #4ADE80; }
     .session-status-dot.idle { background: #9A9A9A; }
