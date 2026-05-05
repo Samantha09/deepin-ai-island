@@ -296,6 +296,7 @@ class IslandWindow(QWidget):
 
         html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "island.html")
         self.web_view.load(QUrl.fromLocalFile(html_path))
+        self.web_view.loadFinished.connect(self._on_web_load_finished)
 
         self.expanded_window = ExpandedWindow(self)
 
@@ -924,6 +925,11 @@ class IslandWindow(QWidget):
         }
         js = f"if (typeof window.updateSessions === 'function') window.updateSessions({json.dumps(data, ensure_ascii=False)});"
         self.web_view.page().runJavaScript(js)
+
+    def _on_web_load_finished(self, ok: bool) -> None:
+        """页面加载完成后推送一次会话列表，确保首次启动时能正确显示。"""
+        if ok:
+            self._push_sessions_to_web()
 
     # ------------------------------------------------------------------
     # User interactions from JS
