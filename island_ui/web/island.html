@@ -528,12 +528,10 @@
         card.appendChild(row);
 
         // 工作概要（1-2行）
-        if (session.summary) {
-          const summaryEl = document.createElement("div");
-          summaryEl.className = "session-summary";
-          summaryEl.textContent = session.summary;
-          card.appendChild(summaryEl);
-        }
+        const summaryEl = document.createElement("div");
+        summaryEl.className = "session-summary";
+        summaryEl.textContent = session.summary || "准备就绪";
+        card.appendChild(summaryEl);
 
         // 只要状态是 needs_attention 就显示审批按钮
         if (session.status === "needs_attention") {

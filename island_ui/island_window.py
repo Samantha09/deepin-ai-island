@@ -725,8 +725,21 @@ class IslandWindow(QWidget):
                 msg = event.payload.get("message", "")
                 if msg and msg != "idle":
                     summaries.append(msg[:50])
+            elif event.type == "session.started":
+                task = event.payload.get("task", "")
+                if task:
+                    summaries.append(f"任务: {task[:50]}")
             if len(summaries) >= 2:
                 break
+        if not summaries:
+            if session.status == "needs_attention":
+                return "等待审批..."
+            elif session.status == "running":
+                return "运行中..."
+            elif session.status == "completed":
+                return "已完成"
+            else:
+                return "准备就绪"
         return " · ".join(reversed(summaries))
 
     def _push_sessions_to_web(self) -> None:
@@ -868,8 +881,9 @@ class IslandWindow(QWidget):
         if self._expanded_open:
             return
         from PySide6.QtGui import QCursor
-        widget = QApplication.widgetAt(QCursor.pos())
-        inside = widget is not None and (widget is self or self.isAncestorOf(widget))
+        pos = QCursor.pos()
+        # 使用窗口几何直接判断，避免 QWebEngine native widget 导致 widgetAt 返回异常
+        inside = self.geometry().contains(pos)
         if inside:
             self._leave_timer.stop()
             if not self._hovered:
