@@ -674,6 +674,8 @@ class IslandWindow(QWidget):
             session.add_event(event)
             # 更新终端环境信息（hook 脚本可能发送了新的 tmux/window 信息）
             self._update_session_terminal(session, event.payload)
+            # 任何会话状态变化都推送到前端，确保列表及时刷新
+            self._push_sessions_to_web()
 
         # 审批事件：先插件拦截，再检查自动批准，不满足再弹窗
         if event.type == "permission.requested":
@@ -940,6 +942,8 @@ class IslandWindow(QWidget):
     def start(self) -> None:
         self._event_source.start()
         self.show()
+        # 启动后延迟推送一次会话列表，确保已有会话被加载到前端
+        QTimer.singleShot(300, self._push_sessions_to_web)
         # 加载插件
         self._plugins = plugin_loader.load_plugins(self)
         for plugin in self._plugins:
