@@ -453,16 +453,20 @@ class IslandWindow(QWidget):
             session.tmux_socket = payload["tmux_socket"]
         if payload.get("window_id"):
             session.window_id = payload["window_id"]
-        if payload.get("window_title"):
-            session.window_title = payload["window_title"]
+        if payload.get("terminal_tty"):
+            session.terminal_tty = payload["terminal_tty"]
+        if payload.get("terminal_app"):
+            session.terminal_app = payload["terminal_app"]
 
     def jump_to_terminal(self, session_id: str) -> None:
-        """跳转到会话所在的终端（tmux → 窗口聚焦 → 启动新终端）。"""
+        """跳转到会话所在的终端（tmux → TTY+进程树 → window_id）。"""
         session = self._sessions.get(session_id)
         if not session:
+            self._log_jump(session_id, "session not found")
             return
         import shutil
         import subprocess
+
         # 1. 优先尝试 tmux
         if session.tmux_session:
             tmux_cmd = ["tmux", "switch-client", "-t", session.tmux_session]
@@ -471,90 +475,119 @@ class IslandWindow(QWidget):
                 tmux_cmd.insert(2, session.tmux_socket)
             try:
                 subprocess.run(tmux_cmd, check=True, capture_output=True, timeout=3.0)
+                self._log_jump(session_id, f"tmux OK: {' '.join(tmux_cmd)}")
                 return
-            except Exception:
-                pass
-        # 2. 尝试通过窗口 ID 聚焦（xdotool）
-        if session.window_id:
-            xdotool = shutil.which("xdotool")
-            if xdotool:
-                try:
-                    subprocess.run(
-                        [xdotool, "windowactivate", session.window_id],
-                        check=True, capture_output=True, timeout=3.0
-                    )
-                    return
-                except Exception:
-                    pass
-        # 3. 尝试通过窗口标题聚焦（wmctrl 或 xdotool）
-        if session.window_title:
-            wmctrl = shutil.which("wmctrl")
-            if wmctrl:
-                try:
-                    subprocess.run(
-                        [wmctrl, "-a", session.window_title],
-                        check=True, capture_output=True, timeout=3.0
-                    )
-                    return
-                except Exception:
-                    pass
-            xdotool = shutil.which("xdotool")
-            if xdotool:
-                try:
-                    subprocess.run(
-                        [xdotool, "search", "--name", session.window_title, "windowactivate"],
-                        check=True, capture_output=True, timeout=3.0
-                    )
-                    return
-                except Exception:
-                    pass
-        # 3.5 通过会话名称或工作目录搜索已有终端窗口
+            except Exception as e:
+                self._log_jump(session_id, f"tmux FAIL: {e}")
+        else:
+            self._log_jump(session_id, "no tmux_session")
+
         xdotool = shutil.which("xdotool")
-        if xdotool:
-            search_terms = []
-            if session.name:
-                search_terms.append(session.name)
-            if session.terminal and session.terminal != os.path.expanduser("~"):
-                search_terms.append(os.path.basename(session.terminal))
-                search_terms.append(session.terminal)
-            for term in search_terms:
-                try:
-                    result = subprocess.run(
-                        [xdotool, "search", "--name", term],
+
+        # 2. 通过 TTY → 进程树向上遍历 → 找到有 X11 窗口的祖先进程
+        if session.terminal_tty and xdotool:
+            self._log_jump(session_id, f"tty={session.terminal_tty}, trying ancestor walk")
+            try:
+                # 获取该 TTY 上的所有进程
+                result = subprocess.run(
+                    ["ps", "-t", session.terminal_tty, "-o", "pid=", "--no-headers"],
+                    capture_output=True, text=True, timeout=3.0
+                )
+                if result.returncode == 0:
+                    pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+                    for pid in pids:
+                        # 从每个进程向上遍历祖先链，找第一个有 X11 窗口的
+                        current_pid = pid
+                        for _ in range(16):
+                            # 获取父进程 PID
+                            ppid_result = subprocess.run(
+                                ["ps", "-o", "ppid=", "-p", str(current_pid)],
+                                capture_output=True, text=True, timeout=1.0
+                            )
+                            if ppid_result.returncode != 0:
+                                break
+                            ppid = ppid_result.stdout.strip()
+                            if not ppid or ppid in ("0", "1"):
+                                break
+                            # 检查父进程是否有可见窗口
+                            wid_result = subprocess.run(
+                                [xdotool, "search", "--onlyvisible", "--pid", ppid],
+                                capture_output=True, text=True, timeout=1.0
+                            )
+                            if wid_result.returncode == 0:
+                                wids = wid_result.stdout.strip().split()
+                                if wids:
+                                    subprocess.run(
+                                        [xdotool, "windowactivate", wids[0]],
+                                        check=True, capture_output=True, timeout=3.0
+                                    )
+                                    self._log_jump(session_id, f"ancestor walk OK: pid={ppid}, window={wids[0]}")
+                                    return
+                            current_pid = ppid
+                else:
+                    self._log_jump(session_id, f"ps -t failed rc={result.returncode}")
+            except Exception as e:
+                self._log_jump(session_id, f"ancestor walk exception: {e}")
+        elif not session.terminal_tty:
+            self._log_jump(session_id, "no terminal_tty")
+
+        # 3. 通过 terminal_app 类名搜索窗口并激活
+        if session.terminal_app and xdotool:
+            self._log_jump(session_id, f"terminal_app={session.terminal_app!r}, trying class search")
+            try:
+                # 将终端应用名映射到可能的 X11 类名
+                class_candidates = []
+                app_lower = session.terminal_app.lower()
+                if "pycharm" in app_lower:
+                    class_candidates = ["jetbrains-pycharm", "pycharm"]
+                elif "vscode" in app_lower or "code" in app_lower:
+                    class_candidates = ["code", "vscode"]
+                elif "deepin-terminal" in app_lower:
+                    class_candidates = ["deepin-terminal", "terminal"]
+                elif "gnome-terminal" in app_lower:
+                    class_candidates = ["gnome-terminal", "terminal"]
+                elif "konsole" in app_lower:
+                    class_candidates = ["konsole"]
+                else:
+                    class_candidates = [app_lower]
+
+                for cls in class_candidates:
+                    r = subprocess.run(
+                        [xdotool, "search", "--onlyvisible", "--class", cls],
                         capture_output=True, text=True, timeout=3.0
                     )
-                    if result.returncode == 0:
-                        wids = result.stdout.strip().split()
+                    if r.returncode == 0:
+                        wids = r.stdout.strip().split()
                         if wids:
                             subprocess.run(
                                 [xdotool, "windowactivate", wids[0]],
                                 check=True, capture_output=True, timeout=3.0
                             )
+                            self._log_jump(session_id, f"class search OK: class={cls}, window={wids[0]}")
                             return
-                except Exception:
-                    pass
+            except Exception as e:
+                self._log_jump(session_id, f"class search exception: {e}")
 
-        # 4. 兜底：启动新终端并 cd 到工作目录
-        terminal_emulators = [
-            "deepin-terminal", "gnome-terminal", "konsole", "alacritty",
-            "x-terminal-emulator", "xfce4-terminal", "terminator"
-        ]
-        for term in terminal_emulators:
-            term_path = shutil.which(term)
-            if term_path:
-                cwd = session.terminal if session.terminal else os.path.expanduser("~")
-                try:
-                    if term == "gnome-terminal":
-                        subprocess.Popen([term_path, "--working-directory", cwd])
-                    elif term == "konsole":
-                        subprocess.Popen([term_path, "--workdir", cwd])
-                    elif term == "alacritty":
-                        subprocess.Popen([term_path, "--working-directory", cwd])
-                    else:
-                        subprocess.Popen([term_path], cwd=cwd)
-                    return
-                except Exception:
-                    pass
+        # 4. 尝试通过窗口 ID 聚焦
+        self._log_jump(session_id, f"window_id={session.window_id!r}")
+        if session.window_id and xdotool:
+            try:
+                subprocess.run(
+                    [xdotool, "windowactivate", session.window_id],
+                    check=True, capture_output=True, timeout=3.0
+                )
+                self._log_jump(session_id, f"windowactivate {session.window_id} OK")
+                return
+            except Exception as e:
+                self._log_jump(session_id, f"windowactivate FAIL: {e}")
+        self._log_jump(session_id, "all methods exhausted")
+
+    def _log_jump(self, session_id: str, message: str) -> None:
+        try:
+            with open("/tmp/ai-island-jump.log", "a", encoding="utf-8") as f:
+                f.write(f"[{session_id}] {message}\n")
+        except Exception:
+            pass
 
     def _target_rect(self, width: int, height: int) -> QRect:
         screen = QApplication.primaryScreen()

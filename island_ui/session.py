@@ -21,6 +21,8 @@ class Session:
     tmux_socket: str = ""
     window_id: str = ""
     window_title: str = ""
+    terminal_tty: str = ""
+    terminal_app: str = ""
 
     def is_permission_resolved(self, tool_use_id: str) -> bool:
         return tool_use_id in self.resolved_tool_use_ids

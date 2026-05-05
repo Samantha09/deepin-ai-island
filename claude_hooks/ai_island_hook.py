@@ -17,15 +17,75 @@ SOCKET_PATH = "/tmp/ai-island.sock"
 PERMISSION_TIMEOUT = 86400
 
 
+def _infer_terminal_app() -> str:
+    """通过进程树向上遍历，推断当前终端应用类型。"""
+    import subprocess
+    try:
+        pid = os.getpid()
+        for _ in range(16):
+            result = subprocess.run(
+                ["ps", "-o", "ppid=", "-p", str(pid)],
+                capture_output=True, text=True, timeout=1.0
+            )
+            if result.returncode != 0:
+                break
+            ppid = result.stdout.strip()
+            if not ppid or ppid in ("0", "1"):
+                break
+            pid = int(ppid)
+            comm_result = subprocess.run(
+                ["ps", "-o", "comm=", "-p", str(pid)],
+                capture_output=True, text=True, timeout=1.0
+            )
+            if comm_result.returncode != 0:
+                continue
+            comm = comm_result.stdout.strip().lower()
+            if "pycharm" in comm:
+                return "pycharm"
+            # Java 进程可能是 PyCharm 或其他 JetBrains IDE
+            if "java" in comm:
+                cmdline_result = subprocess.run(
+                    ["ps", "-o", "command=", "-p", str(pid)],
+                    capture_output=True, text=True, timeout=1.0
+                )
+                if cmdline_result.returncode == 0:
+                    cmdline = cmdline_result.stdout.strip().lower()
+                    if "pycharm" in cmdline:
+                        return "pycharm"
+                    if "idea" in cmdline:
+                        return "idea"
+                    if "webstorm" in cmdline:
+                        return "webstorm"
+                    if "goland" in cmdline:
+                        return "goland"
+                    if "clion" in cmdline:
+                        return "clion"
+            if "deepin-terminal" in comm:
+                return "deepin-terminal"
+            if "gnome-terminal" in comm:
+                return "gnome-terminal"
+            if "konsole" in comm:
+                return "konsole"
+            if "terminator" in comm:
+                return "terminator"
+            if "xterm" in comm:
+                return "xterm"
+            if comm in ("code", "vscode"):
+                return "vscode"
+    except Exception:
+        pass
+    return ""
+
+
 def _get_terminal_env() -> dict:
     """获取终端环境信息（tmux、窗口标题等），用于 AI Island 跳转终端。"""
+    import subprocess
     env = {}
     # tmux 信息
     tmux = os.environ.get("TMUX", "")
     if tmux:
         env["tmux_socket"] = tmux
         try:
-            import subprocess
             result = subprocess.run(
                 ["tmux", "display-message", "-p", "#S"],
                 capture_output=True, text=True, timeout=1.0
@@ -34,21 +94,56 @@ def _get_terminal_env() -> dict:
                 env["tmux_session"] = result.stdout.strip()
         except Exception:
             pass
-    # 终端窗口信息
+    # 终端窗口信息（参考 open-vibe-island：用 TTY 和终端类型定位，不用 X11 窗口标题）
     window_id = os.environ.get("WINDOWID", "")
-    if window_id:
+    if window_id and window_id != "0":
         env["window_id"] = window_id
-    # 尝试获取窗口标题
+
+    # 终端类型（TERM_PROGRAM 比 X11 类名更稳定）
+    term_program = os.environ.get("TERM_PROGRAM", "")
+    if term_program:
+        env["terminal_app"] = term_program
+    else:
+        # 通过进程树向上推断终端应用类型
+        env["terminal_app"] = _infer_terminal_app()
+
+    # 当前 TTY（精确定位终端实例）
+    # 方法1: 通过 stdin 文件描述符（Claude Code hook 中 stdin 是管道，此方式通常失败）
     try:
-        import subprocess
-        result = subprocess.run(
-            ["xdotool", "getactivewindow", "getwindowname"],
-            capture_output=True, text=True, timeout=1.0
-        )
-        if result.returncode == 0:
-            env["window_title"] = result.stdout.strip()
-    except Exception:
+        tty = os.ttyname(0)
+        if tty:
+            env["terminal_tty"] = tty
+    except (OSError, AttributeError):
         pass
+
+    # 方法2: 通过 tty 命令（stdout 仍可能是 TTY）
+    if "terminal_tty" not in env:
+        try:
+            result = subprocess.run(
+                ["tty"], capture_output=True, text=True, timeout=1.0
+            )
+            if result.returncode == 0:
+                tty_out = result.stdout.strip()
+                if tty_out and "not a tty" not in tty_out:
+                    env["terminal_tty"] = tty_out
+        except Exception:
+            pass
+
+    # 方法3: 通过父进程 TTY（最后手段，open-vibe-island 方案）
+    if "terminal_tty" not in env:
+        try:
+            ppid = os.getppid()
+            result = subprocess.run(
+                ["ps", "-p", str(ppid), "-o", "tty="],
+                capture_output=True, text=True, timeout=1.0
+            )
+            if result.returncode == 0:
+                tty = result.stdout.strip()
+                if tty and tty not in ("?", "??"):
+                    env["terminal_tty"] = f"/dev/{tty}" if not tty.startswith("/") else tty
+        except Exception:
+            pass
+
     return env
 
 
