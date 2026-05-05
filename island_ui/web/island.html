@@ -70,27 +70,30 @@
 
     /* 状态点 */
     .status-dot {
-      width: 14px;
-      height: 14px;
-      background-image: url('scout-icon.png');
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
       flex-shrink: 0;
-      image-rendering: pixelated;
-      transition: filter 200ms ease;
+      transition: background-color 200ms ease, box-shadow 200ms ease;
     }
-    .status-dot.idle { filter: brightness(0.6) grayscale(0.4); }
-    .status-dot.active { filter: brightness(1.0); }
-    .status-dot.waiting { filter: brightness(1.1) sepia(1) hue-rotate(320deg) saturate(2.5); }
-    .status-dot.error { filter: brightness(1.1) sepia(1) hue-rotate(320deg) saturate(2.5); }
+    .status-dot.idle { background: #9A9A9A; }
+    .status-dot.active { background: #66E8F8; }
+    .status-dot.waiting { background: #F59E0B; }
+    .status-dot.error { background: #EF4444; }
 
     @keyframes breathe {
-      0%, 100% { filter: brightness(0.7); }
-      50% { filter: brightness(1.4); }
+      0%, 100% { box-shadow: 0 0 2px 1px rgba(102, 232, 248, 0.4); transform: scale(1); }
+      50% { box-shadow: 0 0 12px 5px rgba(102, 232, 248, 0.6); transform: scale(1.1); }
+    }
+    @keyframes breathe-waiting {
+      0%, 100% { box-shadow: 0 0 2px 1px rgba(245, 158, 11, 0.4); transform: scale(1); }
+      50% { box-shadow: 0 0 12px 5px rgba(245, 158, 11, 0.6); transform: scale(1.1); }
     }
     .status-dot.active {
       animation: breathe 1.2s ease-in-out infinite;
+    }
+    .status-dot.waiting {
+      animation: breathe-waiting 1.2s ease-in-out infinite;
     }
 
     /* 中间信息 */
@@ -278,24 +281,20 @@
       white-space: nowrap;
     }
     .session-status-dot {
-      width: 12px;
-      height: 12px;
-      background-image: url('scout-icon.png');
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
       flex-shrink: 0;
       margin-right: 6px;
-      image-rendering: pixelated;
-      transition: filter 200ms ease;
+      transition: background-color 200ms ease, box-shadow 200ms ease;
     }
     .session-status-dot.running {
-      filter: brightness(1.0);
+      background: #66E8F8;
       animation: breathe 1.2s ease-in-out infinite;
     }
-    .session-status-dot.needs_attention { filter: brightness(1.1) sepia(1) hue-rotate(320deg) saturate(2.5); }
-    .session-status-dot.completed { filter: brightness(0.8) grayscale(0.3); }
-    .session-status-dot.idle { filter: brightness(0.5) grayscale(0.5); }
+    .session-status-dot.needs_attention { background: #F59E0B; animation: breathe-waiting 1.2s ease-in-out infinite; }
+    .session-status-dot.completed { background: #4ADE80; }
+    .session-status-dot.idle { background: #9A9A9A; }
     .session-summary {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.45);

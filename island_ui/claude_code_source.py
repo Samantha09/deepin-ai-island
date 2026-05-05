@@ -290,9 +290,8 @@ class ClaudeCodeEventSource(EventSource):
                     "transcript_path": "",
                 }
                 self._emit_session_started(session_id, cwd)
-                # 首次发现时如果已经在处理中，立即同步状态
-                if status in ("processing", "busy", "waiting"):
-                    self._handle_status_change(session_id, status, waiting_for, cwd)
+                # 首次发现时立即同步状态，避免空状态会话被默认标记为 running
+                self._handle_status_change(session_id, status, waiting_for, cwd)
             else:
                 # 已有会话，检查状态变化
                 old_status = known.get("status")
@@ -468,7 +467,14 @@ class ClaudeCodeEventSource(EventSource):
                 payload={"status": status, "cwd": cwd},
             )
             self.event_received.emit(event)
-        # 其他状态不生成 ProgressUpdated，避免 session list 描述频繁跳动
+        else:
+            # 空状态或未知状态，标记为 idle，避免会话永远卡在 running
+            event = ProgressUpdated(
+                session_id=session_id,
+                message="idle",
+                payload={"status": "idle", "cwd": cwd},
+            )
+            self.event_received.emit(event)
 
     # ------------------------------------------------------------------
     # Socket 事件解析
@@ -482,6 +488,16 @@ class ClaudeCodeEventSource(EventSource):
             known = self._known_sessions.get(session_id)
             if known and not known.get("transcript_path"):
                 known["transcript_path"] = transcript_path
+
+        # 将已知的 cwd/task 注入 payload，便于下游 auto-recovery 时还原会话名称
+        if session_id:
+            known = self._known_sessions.get(session_id)
+            if known and known.get("cwd"):
+                payload = data.setdefault("payload", {})
+                if "cwd" not in payload:
+                    payload["cwd"] = known["cwd"]
+                if "task" not in payload:
+                    payload["task"] = Path(known["cwd"]).name
 
         event = self._parse_socket_event(data)
         if event:

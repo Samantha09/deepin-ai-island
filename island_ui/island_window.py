@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QObject, Signal, Slot, QRect, QUrl
@@ -647,11 +648,15 @@ class IslandWindow(QWidget):
         session = self._sessions.get(event.session_id)
         if not session and event.type in ("chat.message", "permission.requested", "question.asked"):
             # 自动恢复被关闭的活跃会话
+            fallback_name = event.payload.get("task")
+            if not fallback_name:
+                cwd = event.payload.get("cwd", event.payload.get("terminal", ""))
+                fallback_name = Path(cwd).name if cwd else event.session_id[:8]
             session = Session(
                 id=event.session_id,
-                name=event.payload.get("task", event.session_id[:8]),
+                name=fallback_name,
                 agent=event.payload.get("agent", "Unknown"),
-                terminal=event.payload.get("terminal", ""),
+                terminal=event.payload.get("terminal", event.payload.get("cwd", "")),
                 start_time=event.timestamp,
             )
             self._update_session_terminal(session, event.payload)
