@@ -27,7 +27,9 @@
       border: none;
       outline: none;
       box-shadow: none;
-      transition: border-radius 220ms ease, background 220ms ease;
+      transition: border-radius 300ms ease, background 300ms ease;
+      will-change: border-radius, background;
+      contain: layout paint;
       display: flex;
       align-items: flex-start;
       justify-content: flex-start;
@@ -74,7 +76,10 @@
       height: 8px;
       border-radius: 50%;
       flex-shrink: 0;
-      transition: background-color 200ms ease, box-shadow 200ms ease;
+      transition: background-color 300ms ease, box-shadow 300ms ease;
+      will-change: transform, box-shadow;
+      transform-origin: center;
+      backface-visibility: hidden;
     }
     .status-dot.idle { background: #9A9A9A; }
     .status-dot.active { background: #66E8F8; }
@@ -155,7 +160,9 @@
       box-sizing: border-box;
       opacity: 0;
       transform: translateY(-4px);
-      transition: opacity 160ms ease, transform 160ms ease;
+      transition: opacity 300ms ease, transform 300ms ease;
+      will-change: opacity, transform;
+      contain: layout paint;
       pointer-events: none;
       overflow-y: auto;
       overflow-x: hidden;

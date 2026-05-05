@@ -301,8 +301,8 @@ class IslandWindow(QWidget):
 
         # 窗口几何动画
         self.animation = QPropertyAnimation(self, b"geometry")
-        self.animation.setDuration(240)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.animation.setDuration(300)
+        self.animation.setEasingCurve(QEasingCurve.InOutCubic)
         self._anim_target: Optional[tuple[int, int]] = None
 
         initial_rect = self._target_rect(*self.small_size)
@@ -556,11 +556,8 @@ class IslandWindow(QWidget):
         return QRect(x, y, width, height)
 
     def animate_to(self, width: int, height: int) -> None:
+        target_rect = self._target_rect(width, height)
         current_geo = self.geometry()
-        target_y = self._target_rect(width, height).y()
-        # 保持水平中心不变，避免宽度变化时视觉左移
-        target_x = current_geo.center().x() - width // 2
-        target_rect = QRect(target_x, target_y, width, height)
         # 如果已经在目标尺寸，不启动动画
         if current_geo == target_rect:
             return
@@ -568,7 +565,10 @@ class IslandWindow(QWidget):
         if self.animation.state() == QPropertyAnimation.State.Running and self._anim_target == (width, height):
             return
         self._anim_target = (width, height)
-        self.animation.stop()
+        # 如果正在运行且目标不同，停止后从当前位置平滑过渡
+        if self.animation.state() == QPropertyAnimation.State.Running:
+            self.animation.stop()
+            current_geo = self.geometry()
         self.animation.setStartValue(current_geo)
         self.animation.setEndValue(target_rect)
         self.animation.start()
@@ -894,6 +894,9 @@ class IslandWindow(QWidget):
 
     def _check_hover(self) -> None:
         if self._expanded_open or self._permission_notify_expanded:
+            return
+        # 动画运行期间不检测 hover，避免尺寸变化导致误判和反复翻转
+        if self.animation.state() == QPropertyAnimation.State.Running:
             return
         from PySide6.QtGui import QCursor
         pos = QCursor.pos()
