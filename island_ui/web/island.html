@@ -296,19 +296,47 @@
     .session-status-dot.completed { background: #4ADE80; }
     .session-status-dot.idle { background: #9A9A9A; }
     .session-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 3px;
+      transition: all 200ms ease;
+    }
+    .session-summary-line {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.45);
-      margin-top: 3px;
       line-height: 1.35;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      transition: all 200ms ease;
+      white-space: nowrap;
     }
-    .session-card:hover .session-summary {
-      -webkit-line-clamp: 3;
+    .session-summary .session-summary-line:nth-child(n+3) {
+      display: none;
+    }
+    .session-card:hover .session-summary .session-summary-line:nth-child(n+3) {
+      display: block;
+    }
+    .session-summary-line code {
+      font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+      font-size: 10px;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      padding: 1px 4px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .session-summary-line strong {
+      color: rgba(255, 255, 255, 0.75);
+      font-weight: 600;
+    }
+    .session-summary-line em {
+      font-style: italic;
+      color: rgba(255, 255, 255, 0.65);
+    }
+    .session-summary-line del {
+      text-decoration: line-through;
+      opacity: 0.5;
     }
     .session-waiting {
       font-size: 10px;
@@ -414,12 +442,34 @@
     let bridge = null;
     let hoverTimer = null;
     let hoverActive = false;
+    let notificationExpand = false;
 
     const capsule = document.getElementById("capsule");
     const statusDot = document.getElementById("status-dot");
     const centerInfo = document.getElementById("center-info");
     const sessionList = document.getElementById("session-list");
     const settingsBtn = document.getElementById("settings-btn");
+
+    // 简单的 Markdown 转 HTML（安全转义 + 常用内联语法）
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    function markdownToHtml(text) {
+      let html = escapeHtml(text);
+      // bold
+      html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      // italic
+      html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      html = html.replace(/_([^_]+)_/g, "<em>$1</em>");
+      // inline code
+      html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+      // strikethrough
+      html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+      return html;
+    }
 
     // 建立 QWebChannel
     new QWebChannel(qt.webChannelTransport, function (channel) {
@@ -442,12 +492,24 @@
         clearTimeout(hoverTimer);
         hoverTimer = null;
       }
-      if (hoverActive) {
+      if (hoverActive && !notificationExpand) {
         hoverActive = false;
         capsule.classList.remove("hovered");
         if (bridge) bridge.setHovered(false);
       }
     });
+
+    // 通知模式展开（权限请求时自动展开会话列表，与悬停独立）
+    window.setNotificationExpand = function (show) {
+      notificationExpand = show;
+      if (show) {
+        hoverActive = true;
+        capsule.classList.add("hovered");
+      } else {
+        hoverActive = false;
+        capsule.classList.remove("hovered");
+      }
+    };
 
     // 设置按钮点击
     settingsBtn.addEventListener("click", function (e) {
@@ -550,10 +612,19 @@
 
         card.appendChild(row);
 
-        // 工作概要（1-2行）
+        // 工作概要（1-3 行对话效果）
         const summaryEl = document.createElement("div");
         summaryEl.className = "session-summary";
-        summaryEl.textContent = session.summary || "准备就绪";
+        var summaryLines = session.summary || ["准备就绪"];
+        if (typeof summaryLines === "string") {
+          summaryLines = [summaryLines];
+        }
+        summaryLines.forEach(function (line, idx) {
+          var lineEl = document.createElement("div");
+          lineEl.className = "session-summary-line";
+          lineEl.innerHTML = markdownToHtml(line);
+          summaryEl.appendChild(lineEl);
+        });
         card.appendChild(summaryEl);
 
         // 只要状态是 needs_attention 就显示审批按钮
@@ -561,7 +632,7 @@
           if (session.waiting_action) {
             const waitingText = document.createElement("div");
             waitingText.className = "session-waiting";
-            waitingText.textContent = "需要审批: " + session.waiting_action;
+            waitingText.innerHTML = "需要审批: " + markdownToHtml(session.waiting_action);
             card.appendChild(waitingText);
           }
 

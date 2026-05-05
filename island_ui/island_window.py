@@ -248,6 +248,7 @@ class IslandWindow(QWidget):
         self._hovered = False
         self._native_fixed = False
         self._expanded_open = False
+        self._permission_notify_expanded = False
 
         # 自动批准配置（规则）
         self._auto_approve = self._load_auto_approve_config()
@@ -698,54 +699,63 @@ class IslandWindow(QWidget):
             if session and self._should_auto_approve(session.id, action):
                 self._auto_respond_permission(session, event)
                 return
-            self._auto_expand_for_permission(event.session_id)
+            # 审批到达时自动触发悬停展开效果（显示会话列表而非详情页），5s 后自动收回
+            self._auto_expand_for_permission()
 
         self._push_sessions_to_web()
 
-    def _auto_expand_for_permission(self, session_id: str) -> None:
-        if not self.expanded_window.isVisible():
-            self.select_session(session_id)
+    def _auto_expand_for_permission(self) -> None:
+        if not self._permission_notify_expanded:
+            self._permission_notify_expanded = True
+            self.animate_to(*self.large_size)
+            self.web_view.page().runJavaScript(
+                "if (typeof window.setNotificationExpand === 'function') { window.setNotificationExpand(true); }"
+            )
             self._permission_auto_close_timer.stop()
             self._permission_auto_close_timer.start(5000)
 
     def _on_permission_auto_close(self) -> None:
-        if self.expanded_window.isVisible():
-            self.expanded_window.close_to_main()
+        if self._permission_notify_expanded:
+            self._permission_notify_expanded = False
+            self.animate_to(*self.small_size)
+            self.web_view.page().runJavaScript(
+                "if (typeof window.setNotificationExpand === 'function') { window.setNotificationExpand(false); }"
+            )
 
-    def _build_session_summary(self, session: Session) -> str:
-        """从会话事件中提取 1-3 行简短工作概要。"""
+    def _build_session_summary(self, session: Session) -> list[str]:
+        """从会话事件中提取 1-3 行简短工作概要，返回列表以便前端逐行渲染对话效果。"""
         summaries: list[str] = []
         for event in reversed(session.events):
             if event.type == "chat.message":
                 content = event.payload.get("content", "")
                 role = event.payload.get("role", "assistant")
                 prefix = "你" if role == "user" else "AI"
-                text = content[:50] + "..." if len(content) > 50 else content
+                text = content[:80] + "..." if len(content) > 80 else content
                 summaries.append(f"{prefix}: {text}")
             elif event.type == "permission.requested":
                 action = event.payload.get("action", "")
-                text = action[:50] + "..." if len(action) > 50 else action
+                text = action[:80] + "..." if len(action) > 80 else action
                 summaries.append(f"需要审批: {text}")
             elif event.type == "progress.updated":
                 msg = event.payload.get("message", "")
                 if msg and msg != "idle":
-                    summaries.append(msg[:50])
+                    summaries.append(msg[:80])
             elif event.type == "session.started":
                 task = event.payload.get("task", "")
                 if task:
-                    summaries.append(f"任务: {task[:50]}")
+                    summaries.append(f"任务: {task[:80]}")
             if len(summaries) >= 3:
                 break
         if not summaries:
             if session.status == "needs_attention":
-                return "等待审批..."
+                return ["等待审批..."]
             elif session.status == "running":
-                return "运行中..."
+                return ["运行中..."]
             elif session.status == "completed":
-                return "已完成"
+                return ["已完成"]
             else:
-                return "准备就绪"
-        return " · ".join(reversed(summaries))
+                return ["准备就绪"]
+        return list(reversed(summaries))
 
     def _push_sessions_to_web(self) -> None:
         import json
@@ -883,7 +893,7 @@ class IslandWindow(QWidget):
     # ------------------------------------------------------------------
 
     def _check_hover(self) -> None:
-        if self._expanded_open:
+        if self._expanded_open or self._permission_notify_expanded:
             return
         from PySide6.QtGui import QCursor
         pos = QCursor.pos()
@@ -898,7 +908,7 @@ class IslandWindow(QWidget):
                 self._leave_timer.start(1000)
 
     def _on_delayed_leave(self) -> None:
-        if self._expanded_open:
+        if self._expanded_open or self._permission_notify_expanded:
             return
         if self._hovered:
             self.set_hovered(False)
