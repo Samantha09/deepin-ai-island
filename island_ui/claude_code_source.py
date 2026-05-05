@@ -290,6 +290,9 @@ class ClaudeCodeEventSource(EventSource):
                     "transcript_path": "",
                 }
                 self._emit_session_started(session_id, cwd)
+                # 首次发现时如果已经在处理中，立即同步状态
+                if status in ("processing", "busy", "waiting"):
+                    self._handle_status_change(session_id, status, waiting_for, cwd)
             else:
                 # 已有会话，检查状态变化
                 old_status = known.get("status")
