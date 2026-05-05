@@ -708,7 +708,7 @@ class IslandWindow(QWidget):
             self.expanded_window.close_to_main()
 
     def _build_session_summary(self, session: Session) -> str:
-        """从会话事件中提取 1-2 行简短工作概要。"""
+        """从会话事件中提取 1-3 行简短工作概要。"""
         summaries: list[str] = []
         for event in reversed(session.events):
             if event.type == "chat.message":
@@ -729,7 +729,7 @@ class IslandWindow(QWidget):
                 task = event.payload.get("task", "")
                 if task:
                     summaries.append(f"任务: {task[:50]}")
-            if len(summaries) >= 2:
+            if len(summaries) >= 3:
                 break
         if not summaries:
             if session.status == "needs_attention":
