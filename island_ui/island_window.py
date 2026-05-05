@@ -459,7 +459,7 @@ class IslandWindow(QWidget):
             session.terminal_app = payload["terminal_app"]
 
     def jump_to_terminal(self, session_id: str) -> None:
-        """跳转到会话所在的终端（tmux → TTY+进程树 → window_id）。"""
+        """跳转到会话所在的终端（tmux → TTY+进程树 → terminal_app → window_id）。"""
         session = self._sessions.get(session_id)
         if not session:
             self._log_jump(session_id, "session not found")
@@ -467,67 +467,57 @@ class IslandWindow(QWidget):
         import shutil
         import subprocess
 
-        # 1. 优先尝试 tmux
-        if session.tmux_session:
-            tmux_cmd = ["tmux", "switch-client", "-t", session.tmux_session]
-            if session.tmux_socket:
-                tmux_cmd.insert(1, "-S")
-                tmux_cmd.insert(2, session.tmux_socket)
-            try:
-                subprocess.run(tmux_cmd, check=True, capture_output=True, timeout=3.0)
-                self._log_jump(session_id, f"tmux OK: {' '.join(tmux_cmd)}")
-                return
-            except Exception as e:
-                self._log_jump(session_id, f"tmux FAIL: {e}")
-        else:
-            self._log_jump(session_id, "no tmux_session")
-
         xdotool = shutil.which("xdotool")
+        tmux_bin = shutil.which("tmux")
+
+        # 1. tmux: 找到活跃客户端的 TTY 或 pane TTY，然后激活对应窗口
+        if session.tmux_session and tmux_bin:
+            self._log_jump(session_id, f"tmux_session={session.tmux_session}")
+            socket_args = []
+            if session.tmux_socket:
+                socket_args = ["-S", session.tmux_socket]
+
+            # 方法A: 获取活跃客户端的 TTY，找到对应终端窗口
+            try:
+                result = subprocess.run(
+                    [tmux_bin] + socket_args + ["list-clients", "-t", session.tmux_session, "-F", "#{client_tty}"],
+                    capture_output=True, text=True, timeout=2.0
+                )
+                if result.returncode == 0:
+                    client_ttys = [t.strip() for t in result.stdout.strip().split("\n") if t.strip()]
+                    self._log_jump(session_id, f"tmux clients: {client_ttys}")
+                    for tty in client_ttys:
+                        if self._activate_by_tty(tty, session_id, xdotool):
+                            return
+                else:
+                    self._log_jump(session_id, f"tmux list-clients rc={result.returncode}")
+            except Exception as e:
+                self._log_jump(session_id, f"tmux client lookup exception: {e}")
+
+            # 方法B: 获取 pane TTY 作为 fallback
+            try:
+                result = subprocess.run(
+                    [tmux_bin] + socket_args + ["list-panes", "-t", session.tmux_session, "-F", "#{pane_tty}"],
+                    capture_output=True, text=True, timeout=2.0
+                )
+                if result.returncode == 0:
+                    pane_ttys = [t.strip() for t in result.stdout.strip().split("\n") if t.strip()]
+                    self._log_jump(session_id, f"tmux pane ttys: {pane_ttys}")
+                    for tty in pane_ttys:
+                        if self._activate_by_tty(tty, session_id, xdotool):
+                            return
+            except Exception as e:
+                self._log_jump(session_id, f"tmux pane lookup exception: {e}")
+        else:
+            if session.tmux_session:
+                self._log_jump(session_id, "tmux_session set but tmux binary not found")
+            else:
+                self._log_jump(session_id, "no tmux_session")
 
         # 2. 通过 TTY → 进程树向上遍历 → 找到有 X11 窗口的祖先进程
         if session.terminal_tty and xdotool:
-            self._log_jump(session_id, f"tty={session.terminal_tty}, trying ancestor walk")
-            try:
-                # 获取该 TTY 上的所有进程
-                result = subprocess.run(
-                    ["ps", "-t", session.terminal_tty, "-o", "pid=", "--no-headers"],
-                    capture_output=True, text=True, timeout=3.0
-                )
-                if result.returncode == 0:
-                    pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
-                    for pid in pids:
-                        # 从每个进程向上遍历祖先链，找第一个有 X11 窗口的
-                        current_pid = pid
-                        for _ in range(16):
-                            # 获取父进程 PID
-                            ppid_result = subprocess.run(
-                                ["ps", "-o", "ppid=", "-p", str(current_pid)],
-                                capture_output=True, text=True, timeout=1.0
-                            )
-                            if ppid_result.returncode != 0:
-                                break
-                            ppid = ppid_result.stdout.strip()
-                            if not ppid or ppid in ("0", "1"):
-                                break
-                            # 检查父进程是否有可见窗口
-                            wid_result = subprocess.run(
-                                [xdotool, "search", "--onlyvisible", "--pid", ppid],
-                                capture_output=True, text=True, timeout=1.0
-                            )
-                            if wid_result.returncode == 0:
-                                wids = wid_result.stdout.strip().split()
-                                if wids:
-                                    subprocess.run(
-                                        [xdotool, "windowactivate", wids[0]],
-                                        check=True, capture_output=True, timeout=3.0
-                                    )
-                                    self._log_jump(session_id, f"ancestor walk OK: pid={ppid}, window={wids[0]}")
-                                    return
-                            current_pid = ppid
-                else:
-                    self._log_jump(session_id, f"ps -t failed rc={result.returncode}")
-            except Exception as e:
-                self._log_jump(session_id, f"ancestor walk exception: {e}")
+            if self._activate_by_tty(session.terminal_tty, session_id, xdotool):
+                return
         elif not session.terminal_tty:
             self._log_jump(session_id, "no terminal_tty")
 
@@ -535,7 +525,6 @@ class IslandWindow(QWidget):
         if session.terminal_app and xdotool:
             self._log_jump(session_id, f"terminal_app={session.terminal_app!r}, trying class search")
             try:
-                # 将终端应用名映射到可能的 X11 类名
                 class_candidates = []
                 app_lower = session.terminal_app.lower()
                 if "pycharm" in app_lower:
@@ -559,11 +548,12 @@ class IslandWindow(QWidget):
                     if r.returncode == 0:
                         wids = r.stdout.strip().split()
                         if wids:
+                            best = self._pick_best_window(wids, session_id)
                             subprocess.run(
-                                [xdotool, "windowactivate", wids[0]],
+                                [xdotool, "windowactivate", best],
                                 check=True, capture_output=True, timeout=3.0
                             )
-                            self._log_jump(session_id, f"class search OK: class={cls}, window={wids[0]}")
+                            self._log_jump(session_id, f"class search OK: class={cls}, window={best}")
                             return
             except Exception as e:
                 self._log_jump(session_id, f"class search exception: {e}")
@@ -581,6 +571,86 @@ class IslandWindow(QWidget):
             except Exception as e:
                 self._log_jump(session_id, f"windowactivate FAIL: {e}")
         self._log_jump(session_id, "all methods exhausted")
+
+    def _activate_by_tty(self, tty: str, session_id: str, xdotool: Optional[str]) -> bool:
+        """通过 TTY 找到对应的终端窗口并激活。返回是否成功。"""
+        import subprocess
+        if not xdotool:
+            return False
+        try:
+            result = subprocess.run(
+                ["ps", "-t", tty, "-o", "pid=", "--no-headers"],
+                capture_output=True, text=True, timeout=3.0
+            )
+            if result.returncode != 0:
+                self._log_jump(session_id, f"ps -t {tty} rc={result.returncode}")
+                return False
+            pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            for pid in pids:
+                current_pid = pid
+                for _ in range(16):
+                    ppid_result = subprocess.run(
+                        ["ps", "-o", "ppid=", "-p", str(current_pid)],
+                        capture_output=True, text=True, timeout=1.0
+                    )
+                    if ppid_result.returncode != 0:
+                        break
+                    ppid = ppid_result.stdout.strip()
+                    if not ppid or ppid in ("0", "1"):
+                        break
+                    wid_result = subprocess.run(
+                        [xdotool, "search", "--onlyvisible", "--pid", ppid],
+                        capture_output=True, text=True, timeout=1.0
+                    )
+                    if wid_result.returncode == 0:
+                        wids = wid_result.stdout.strip().split()
+                        if wids:
+                            best = self._pick_best_window(wids, session_id)
+                            subprocess.run(
+                                [xdotool, "windowactivate", best],
+                                check=True, capture_output=True, timeout=3.0
+                            )
+                            self._log_jump(session_id, f"tty OK: tty={tty}, pid={ppid}, window={best}")
+                            return True
+                    current_pid = ppid
+        except Exception as e:
+            self._log_jump(session_id, f"tty activate exception: {e}")
+        return False
+
+    def _pick_best_window(self, wids: list[str], session_id: str) -> str:
+        """从多个窗口中选择最可能匹配当前会话的窗口（通过 CWD 匹配标题）。"""
+        import subprocess
+        import os
+        if len(wids) <= 1:
+            return wids[0] if wids else ""
+        session = self._sessions.get(session_id)
+        if not session:
+            return wids[0]
+        # 提取会话的 CWD
+        cwd = ""
+        for event in reversed(session.events):
+            cwd = event.payload.get("cwd", "")
+            if cwd:
+                break
+        if not cwd:
+            return wids[0]
+        cwd_name = os.path.basename(cwd).lower()
+        if not cwd_name:
+            return wids[0]
+        # 获取每个窗口的标题，尝试匹配
+        for wid in wids:
+            try:
+                result = subprocess.run(
+                    ["xdotool", "getwindowname", wid],
+                    capture_output=True, text=True, timeout=1.0
+                )
+                if result.returncode == 0:
+                    title = result.stdout.strip().lower()
+                    if cwd_name in title:
+                        return wid
+            except Exception:
+                pass
+        return wids[0]
 
     def _log_jump(self, session_id: str, message: str) -> None:
         try:

@@ -84,7 +84,9 @@ def _get_terminal_env() -> dict:
     # tmux 信息
     tmux = os.environ.get("TMUX", "")
     if tmux:
-        env["tmux_socket"] = tmux
+        # TMUX 环境变量格式: /tmp/tmux-1000/default,1234,0
+        # socket 路径是逗号前的部分
+        env["tmux_socket"] = tmux.split(",")[0]
         try:
             result = subprocess.run(
                 ["tmux", "display-message", "-p", "#S"],
