@@ -3,12 +3,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QObject, Signal, Slot, QRect, QUrl
+from PySide6.QtCore import Qt, QPropertyAnimation, QVariantAnimation, QEasingCurve, QTimer, QObject, Signal, Slot, QRect, QUrl
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget, QSystemTrayIcon, QMenu
-from PySide6.QtGui import QColor, QIcon, QAction, QPixmap, QPainter
+from PySide6.QtGui import QColor, QIcon, QAction, QPixmap, QPainter, QRegion
 
 from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.event_source import EventSource
@@ -299,14 +299,22 @@ class IslandWindow(QWidget):
 
         self.expanded_window = ExpandedWindow(self)
 
-        # 窗口几何动画
-        self.animation = QPropertyAnimation(self, b"geometry")
-        self.animation.setDuration(300)
-        self.animation.setEasingCurve(QEasingCurve.InOutCubic)
-        self._anim_target: Optional[tuple[int, int]] = None
+        # 窗口始终固定为 large_size，通过 setMask 控制可见高度来实现展开/收起。
+        # 这样可以完全避免 QWebEngineView 的逐帧 resize，彻底消除抖动。
+        self.setFixedSize(*self.large_size)
+        self.web_view.setFixedSize(*self.large_size)
+        initial_rect = self._target_rect(*self.large_size)
+        self.move(initial_rect.x(), initial_rect.y())
+        self._mask_height = self.small_size[1]
+        self.setMask(QRegion(0, 0, self.large_size[0], self._mask_height))
 
-        initial_rect = self._target_rect(*self.small_size)
-        self.setGeometry(initial_rect)
+        # Mask 高度动画（展开/收起）
+        self._mask_anim = QVariantAnimation(self)
+        self._mask_anim.setDuration(400)
+        self._mask_anim.setEasingCurve(QEasingCurve.InOutCubic)
+        self._mask_anim.valueChanged.connect(self._on_mask_value_changed)
+
+        self._anim_target: Optional[tuple[int, int]] = None
 
         # 事件连接
         self._event_source.event_received.connect(self._on_event)
@@ -555,24 +563,24 @@ class IslandWindow(QWidget):
         y = screen_geo.y() + self.top_margin
         return QRect(x, y, width, height)
 
-    def animate_to(self, width: int, height: int) -> None:
-        target_rect = self._target_rect(width, height)
-        current_geo = self.geometry()
-        # 如果已经在目标尺寸，不启动动画
-        if current_geo == target_rect:
-            return
-        # 如果当前动画正在向同一目标运行，不重启动画
-        if self.animation.state() == QPropertyAnimation.State.Running and self._anim_target == (width, height):
-            return
-        self._anim_target = (width, height)
-        # 如果正在运行且目标不同，停止后从当前位置平滑过渡
-        if self.animation.state() == QPropertyAnimation.State.Running:
-            self.animation.stop()
-            current_geo = self.geometry()
-        self.animation.setStartValue(current_geo)
-        self.animation.setEndValue(target_rect)
-        self.animation.start()
+    def _on_mask_value_changed(self, height: int) -> None:
+        self.setMask(QRegion(0, 0, self.large_size[0], int(height)))
+
+    def set_mask_height(self, height: int) -> None:
+        if self._mask_anim.state() == QVariantAnimation.State.Running:
+            self._mask_anim.stop()
+        self._mask_anim.setStartValue(self._mask_height)
+        self._mask_anim.setEndValue(height)
+        self._mask_anim.start()
+        self._mask_height = height
         self.schedule_cleanup()
+
+    def animate_to(self, width: int, height: int) -> None:
+        """兼容旧接口，实际通过 mask 高度控制展开/收起。"""
+        if height == self.large_size[1]:
+            self.set_mask_height(self.large_size[1])
+        else:
+            self.set_mask_height(self.small_size[1])
 
     def set_hovered(self, hovered: bool) -> None:
         """由前端 JS 调用，带 80ms 防抖避免快速切换导致抖动."""
@@ -894,9 +902,6 @@ class IslandWindow(QWidget):
 
     def _check_hover(self) -> None:
         if self._expanded_open or self._permission_notify_expanded:
-            return
-        # 动画运行期间不检测 hover，避免尺寸变化导致误判和反复翻转
-        if self.animation.state() == QPropertyAnimation.State.Running:
             return
         from PySide6.QtGui import QCursor
         pos = QCursor.pos()
