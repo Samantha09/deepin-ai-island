@@ -457,7 +457,15 @@ class ClaudeCodeEventSource(EventSource):
                 payload={"status": "idle", "cwd": cwd},
             )
             self.event_received.emit(event)
-        # busy/processing 等普通运行状态不生成 ProgressUpdated，避免 session list 描述频繁跳动
+        elif status in ("processing", "busy"):
+            # AI 正在处理/生成回复，标记为 running
+            event = ProgressUpdated(
+                session_id=session_id,
+                message="处理中...",
+                payload={"status": status, "cwd": cwd},
+            )
+            self.event_received.emit(event)
+        # 其他状态不生成 ProgressUpdated，避免 session list 描述频繁跳动
 
     # ------------------------------------------------------------------
     # Socket 事件解析

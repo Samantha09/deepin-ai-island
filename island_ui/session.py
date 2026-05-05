@@ -41,11 +41,14 @@ class Session:
             self.status = "completed"
         elif event.type == "progress.updated":
             msg = event.payload.get("message", "")
+            poll_status = event.payload.get("status", "")
             # 轮poll检测到的 waiting 状态通过 ProgressUpdated 传递
             if msg.startswith("等待批准"):
                 self.status = "needs_attention"
-            elif msg == "idle":
+            elif msg == "idle" or poll_status == "idle":
                 self.status = "idle"
+            elif poll_status in ("processing", "busy"):
+                self.status = "running"
             # 进度更新时，如果之前是 needs_attention，恢复为 running
             elif self.status == "needs_attention":
                 self.status = "running"
