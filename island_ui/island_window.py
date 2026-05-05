@@ -1005,6 +1005,12 @@ class IslandWindow(QWidget):
         """ExpandedWindow 关闭后恢复主窗口 hover 检测。"""
         self._expanded_open = False
         self._permission_auto_close_timer.stop()
+        # 如果之前处于权限通知自动展开状态，需要清理，否则 Island 会永远展开
+        if self._permission_notify_expanded:
+            self._permission_notify_expanded = False
+            self.web_view.page().runJavaScript(
+                "if (typeof window.setNotificationExpand === 'function') { window.setNotificationExpand(false); }"
+            )
         self._hover_timer.start(100)
 
     # ------------------------------------------------------------------
