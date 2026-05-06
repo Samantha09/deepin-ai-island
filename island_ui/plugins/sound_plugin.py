@@ -42,7 +42,7 @@ class SoundPlugin(IslandPlugin):
         self._effects: dict[str, QSoundEffect] = {}
         self._last_played: dict[str, float] = {}
         self._enabled = True
-        self._volume = 0.8
+        self._volume = 0.5
         self._base_dir = ""
 
     def on_load(self, window) -> None:
@@ -65,7 +65,7 @@ class SoundPlugin(IslandPlugin):
         if self._config_manager is None:
             return
         self._enabled = bool(self._config_manager.get("sound.enabled", True))
-        vol = self._config_manager.get("sound.volume", 80)
+        vol = self._config_manager.get("sound.volume", 50)
         self._volume = max(0, min(100, int(vol))) / 100.0
 
     def _on_config_changed(self, key: str, value: object) -> None:

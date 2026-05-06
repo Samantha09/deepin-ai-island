@@ -1212,11 +1212,13 @@ class IslandWindow(QWidget):
         """设置音效开关。"""
         if self._config_manager is not None:
             self._config_manager.set("sound.enabled", bool(enabled))
+            self._config_manager.save()
 
     def set_sound_volume(self, volume: int) -> None:
         """设置音效音量（0-100）。"""
         if self._config_manager is not None:
             self._config_manager.set("sound.volume", max(0, min(100, int(volume))))
+            self._config_manager.save()
 
     def quit_app(self) -> None:
         """退出应用。"""
