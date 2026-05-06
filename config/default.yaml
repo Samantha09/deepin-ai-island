@@ -47,3 +47,7 @@ auto_approve:
       - mv
       - chmod
       - chown
+
+sound:
+  enabled: true
+  volume: 80
