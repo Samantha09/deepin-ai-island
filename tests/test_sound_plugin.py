@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from unittest.mock import MagicMock, patch
 
 from island_ui.plugins.sound_plugin import SoundPlugin
-from island_ui.events import Event, ChatMessage
+from island_ui.events import Event, ChatMessage, SessionStarted
 from island_ui.config_manager import ConfigManager
 
 
@@ -17,7 +17,7 @@ def test_sound_plugin_name_and_version():
 
 
 @patch('island_ui.plugins.sound_plugin.QSoundEffect')
-def test_on_event_plays_begin_for_chat_message(mock_qsound_cls):
+def test_on_event_plays_begin_for_session_started(mock_qsound_cls):
     mock_effect = MagicMock()
     mock_qsound_cls.return_value = mock_effect
 
@@ -26,7 +26,7 @@ def test_on_event_plays_begin_for_chat_message(mock_qsound_cls):
     window._config_manager = None
     p.on_load(window)
 
-    event = ChatMessage(session_id="s1", role="assistant", content="hello")
+    event = SessionStarted(session_id="s1", payload={"agent": "Claude Code", "task": "fix auth bug"})
     p.on_event(event)
 
     mock_effect.play.assert_called_once()
@@ -42,7 +42,7 @@ def test_debounce_prevents_double_play(mock_qsound_cls):
     window._config_manager = None
     p.on_load(window)
 
-    event = ChatMessage(session_id="s1", role="assistant", content="hello")
+    event = SessionStarted(session_id="s1", payload={"agent": "Claude Code", "task": "fix auth bug"})
     p.on_event(event)
     p.on_event(event)  # 立即再次触发
 
@@ -62,7 +62,7 @@ def test_disabled_does_not_play(mock_qsound_cls):
     window._config_manager = cfg
     p.on_load(window)
 
-    event = ChatMessage(session_id="s1", role="assistant", content="hello")
+    event = SessionStarted(session_id="s1", payload={"agent": "Claude Code", "task": "fix auth bug"})
     p.on_event(event)
 
     mock_effect.play.assert_not_called()
@@ -95,7 +95,7 @@ def test_config_volume_change_updates_effects(mock_qsound_cls):
 
 if __name__ == "__main__":
     test_sound_plugin_name_and_version()
-    test_on_event_plays_begin_for_chat_message()
+    test_on_event_plays_begin_for_session_started()
     test_debounce_prevents_double_play()
     test_disabled_does_not_play()
     test_config_volume_change_updates_effects()

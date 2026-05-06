@@ -21,7 +21,7 @@ class SoundPlugin(IslandPlugin):
     """
 
     _SOUND_MAP = {
-        "chat.message": "begin.mp3",
+        "session.started": "begin.mp3",
         "permission.requested": "alarm.mp3",
         "session.ended": "end.mp3",
     }
