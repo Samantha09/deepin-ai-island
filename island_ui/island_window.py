@@ -1062,7 +1062,16 @@ class IslandWindow(QWidget):
                 self._leave_timer.start(1000)
 
     def _on_delayed_leave(self) -> None:
-        if self._expanded_open or self._permission_notify_expanded:
+        if self._expanded_open:
+            return
+        if self._permission_notify_expanded:
+            # 鼠标移开后强制清除权限通知展开状态，避免永远展开
+            self._permission_notify_expanded = False
+            self._permission_auto_close_timer.stop()
+            self.animate_to(*self.small_size)
+            self.web_view.page().runJavaScript(
+                "if (typeof window.setNotificationExpand === 'function') { window.setNotificationExpand(false); }"
+            )
             return
         if self._hovered:
             self.set_hovered(False)
