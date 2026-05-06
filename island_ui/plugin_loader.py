@@ -34,6 +34,15 @@ def load_plugins(window) -> List[IslandPlugin]:
     except Exception as exc:
         logger.warning("加载商业插件失败: %s", exc)
 
+    # 2. 内置开源音效插件
+    try:
+        from island_ui.plugins.sound_plugin import SoundPlugin
+        sound_plugin = SoundPlugin()
+        _init_plugin(sound_plugin, window)
+        plugins.append(sound_plugin)
+    except Exception as exc:
+        logger.debug("音效插件加载失败: %s", exc)
+
     return plugins
 
 
