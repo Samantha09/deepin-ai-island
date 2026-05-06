@@ -48,9 +48,11 @@ class Session:
             if msg.startswith("等待批准"):
                 self.status = "needs_attention"
             elif msg == "idle" or poll_status == "idle":
-                self.status = "idle"
+                if self.status != "completed":
+                    self.status = "idle"
             elif poll_status in ("processing", "busy"):
-                self.status = "running"
+                if self.status != "completed":
+                    self.status = "running"
             # 进度更新时，如果之前是 needs_attention，恢复为 running
             elif self.status == "needs_attention":
                 self.status = "running"
