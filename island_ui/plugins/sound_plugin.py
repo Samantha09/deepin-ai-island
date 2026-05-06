@@ -83,7 +83,14 @@ class SoundPlugin(IslandPlugin):
         logger = logging.getLogger(__name__)
         music_dir = os.path.join(self._base_dir, "music")
         for event_type, filename in self._SOUND_MAP.items():
-            path = os.path.join(music_dir, filename)
+            basename, _ = os.path.splitext(filename)
+            # 优先尝试 WAV（Qt 原生支持），回退到 MP3
+            for ext in (".wav", ".mp3"):
+                path = os.path.join(music_dir, basename + ext)
+                if os.path.exists(path):
+                    break
+            else:
+                path = os.path.join(music_dir, filename)
             if not os.path.exists(path):
                 logger.warning("音效文件不存在: %s", path)
             effect = QSoundEffect()
