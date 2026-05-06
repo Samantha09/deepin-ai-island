@@ -138,6 +138,73 @@
       background: rgba(255, 255, 255, 0.1);
       color: rgba(255, 255, 255, 0.95);
     }
+    #clear-btn {
+      background: transparent;
+      border: none;
+      color: #9A9A9A;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      margin-right: 2px;
+      line-height: 1;
+    }
+    #clear-btn:hover {
+      color: #EF4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
+    #settings-menu {
+      position: absolute;
+      top: 28px;
+      right: 4px;
+      background: #1E1E1E;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 6px 0;
+      min-width: 160px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      z-index: 100;
+      opacity: 0;
+      transform: scale(0.95);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      pointer-events: none;
+    }
+    #settings-menu.visible {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+    #settings-menu.hidden {
+      display: none;
+    }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      color: #E5E5E5;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .menu-item:hover {
+      background: #2A2A2A;
+    }
+    .menu-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #66E8F8;
+      cursor: pointer;
+    }
+    .menu-item input[type="range"] {
+      width: 70px;
+      cursor: pointer;
+    }
+    .menu-divider {
+      height: 1px;
+      background: #333;
+      margin: 6px 10px;
+    }
 
     /* 自动批准标识 */
     .auto-approved-badge {
@@ -438,7 +505,21 @@
         </div>
         <div id="center-info">AI Island</div>
         <div class="status-right">
+          <button id="clear-btn" type="button" aria-label="clear completed">🗑</button>
           <button id="settings-btn" type="button" aria-label="settings">⋯</button>
+          <div id="settings-menu" class="hidden">
+            <label class="menu-item">
+              <span>音效</span>
+              <input type="checkbox" id="sound-toggle" checked>
+            </label>
+            <label class="menu-item">
+              <span>音量</span>
+              <input type="range" id="sound-volume" min="0" max="100" value="50">
+            </label>
+            <div class="menu-divider"></div>
+            <div class="menu-item" id="menu-about">关于</div>
+            <div class="menu-item" id="menu-quit">退出</div>
+          </div>
         </div>
       </div>
       <div id="session-panel">
@@ -523,10 +604,79 @@
       }
     };
 
-    // 设置按钮点击
+    const clearBtn = document.getElementById("clear-btn");
+    const settingsMenu = document.getElementById("settings-menu");
+    const soundToggle = document.getElementById("sound-toggle");
+    const soundVolume = document.getElementById("sound-volume");
+    const menuAbout = document.getElementById("menu-about");
+    const menuQuit = document.getElementById("menu-quit");
+
+    // 清除按钮点击
+    clearBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (bridge) bridge.clearCompletedSessions();
+    });
+
+    // 设置按钮点击 —— 切换下拉菜单
     settingsBtn.addEventListener("click", function (e) {
       e.stopPropagation();
-      if (bridge) bridge.openExpandedWindow();
+      if (settingsMenu.classList.contains("visible")) {
+        settingsMenu.classList.remove("visible");
+        setTimeout(function () {
+          if (!settingsMenu.classList.contains("visible")) {
+            settingsMenu.classList.add("hidden");
+          }
+        }, 150);
+      } else {
+        settingsMenu.classList.remove("hidden");
+        // 强制重排以确保过渡动画生效
+        settingsMenu.offsetHeight;
+        settingsMenu.classList.add("visible");
+      }
+    });
+
+    // 音效开关
+    soundToggle.addEventListener("change", function () {
+      if (bridge) bridge.setSoundEnabled(soundToggle.checked);
+    });
+
+    // 音量滑块
+    soundVolume.addEventListener("input", function () {
+      if (bridge) bridge.setSoundVolume(parseInt(soundVolume.value, 10));
+    });
+
+    // 关于
+    menuAbout.addEventListener("click", function (e) {
+      e.stopPropagation();
+      alert("AI Island v1.0.0");
+      closeSettingsMenu();
+    });
+
+    // 退出
+    menuQuit.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (bridge) bridge.quitApp();
+    });
+
+    function closeSettingsMenu() {
+      settingsMenu.classList.remove("visible");
+      setTimeout(function () {
+        if (!settingsMenu.classList.contains("visible")) {
+          settingsMenu.classList.add("hidden");
+        }
+      }, 150);
+    }
+
+    // 点击页面其他区域关闭菜单
+    document.addEventListener("click", function () {
+      if (settingsMenu.classList.contains("visible")) {
+        closeSettingsMenu();
+      }
+    });
+
+    // 阻止菜单内部点击冒泡
+    settingsMenu.addEventListener("click", function (e) {
+      e.stopPropagation();
     });
 
     // 更新会话数据
