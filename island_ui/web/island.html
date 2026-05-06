@@ -596,6 +596,7 @@
       if (hoverActive && !notificationExpand) {
         hoverActive = false;
         capsule.classList.remove("hovered");
+        closeSettingsMenu();
         if (bridge) bridge.setHovered(false);
       }
     });
