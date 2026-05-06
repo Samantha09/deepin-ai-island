@@ -1220,4 +1220,4 @@ class IslandWindow(QWidget):
 
     def quit_app(self) -> None:
         """退出应用。"""
-        QApplication.instance().quit()
+        self._quit_app()
