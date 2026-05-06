@@ -680,6 +680,11 @@
       e.stopPropagation();
     });
 
+    // 鼠标离开菜单时自动关闭
+    settingsMenu.addEventListener("mouseleave", function () {
+      closeSettingsMenu();
+    });
+
     // 更新会话数据
     window.updateSessions = function (data) {
       const sessions = data.sessions || [];
