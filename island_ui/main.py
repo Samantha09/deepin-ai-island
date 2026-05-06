@@ -69,14 +69,7 @@ from island_ui.event_source import MockEventSource
 from island_ui.claude_code_source import ClaudeCodeEventSource
 from island_ui.state_machine import IslandStateMachine
 from island_ui.island_window import IslandWindow
-
-
-def load_config(path: str = None) -> dict:
-    if path is None:
-        base = _get_base_dir()
-        path = os.path.join(base, "config", "default.yaml")
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+from island_ui.config_manager import ConfigManager
 
 
 def _setup_font(app: QApplication) -> None:
@@ -102,7 +95,9 @@ def main():
     )
     args = parser.parse_args()
 
-    config = load_config()
+    config_path = os.path.join(_get_base_dir(), "config", "default.yaml")
+    config_manager = ConfigManager(config_path)
+    config = config_manager.data
     island_cfg = config.get("island", {})
     debug_cfg = config.get("debug", {})
 
@@ -125,6 +120,7 @@ def main():
         source = MockEventSource(interval_ms=3000)
 
     window = IslandWindow(event_source=source, state_machine=state_machine)
+    window._config_manager = config_manager
     window.start()
 
     sys.exit(app.exec())

@@ -117,6 +117,11 @@ class ConfigManager(QObject):
         self._data = _deep_copy(DEFAULT_CONFIG)
         self.config_changed.emit("*", None)
 
+    @property
+    def data(self) -> dict[str, Any]:
+        """Return a deep copy of the current configuration."""
+        return _deep_copy(self._data)
+
 
 def _deep_copy(obj: Any) -> Any:
     """Return a deep copy of a dict/list structure."""
