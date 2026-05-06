@@ -61,6 +61,22 @@ class IslandBridge(QObject):
     def jumpToTerminal(self, session_id: str) -> None:
         self.window.jump_to_terminal(session_id)
 
+    @Slot()
+    def clearCompletedSessions(self) -> None:
+        self.window.clear_completed_sessions()
+
+    @Slot(bool)
+    def setSoundEnabled(self, enabled: bool) -> None:
+        self.window.set_sound_enabled(enabled)
+
+    @Slot(int)
+    def setSoundVolume(self, volume: int) -> None:
+        self.window.set_sound_volume(volume)
+
+    @Slot()
+    def quitApp(self) -> None:
+        self.window.quit_app()
+
 
 class ExpandedBridge(QObject):
     """JS -> Python 桥接对象（展开窗口）"""
@@ -1177,3 +1193,31 @@ class IslandWindow(QWidget):
         import gc
         gc.collect()
         self.web_view.page().runJavaScript("if (window.gc) { window.gc(); }")
+
+    def clear_completed_sessions(self) -> None:
+        """移除所有 completed 或 idle 状态的会话。"""
+        to_remove = [
+            sid for sid, s in self._sessions.items()
+            if s.status in ("completed", "idle")
+        ]
+        for sid in to_remove:
+            old_timer = self._completed_timers.pop(sid, None)
+            if old_timer is not None:
+                old_timer.stop()
+            self._sessions.pop(sid, None)
+        if to_remove:
+            self._push_sessions_to_web()
+
+    def set_sound_enabled(self, enabled: bool) -> None:
+        """设置音效开关。"""
+        if self._config_manager is not None:
+            self._config_manager.set("sound.enabled", bool(enabled))
+
+    def set_sound_volume(self, volume: int) -> None:
+        """设置音效音量（0-100）。"""
+        if self._config_manager is not None:
+            self._config_manager.set("sound.volume", max(0, min(100, int(volume))))
+
+    def quit_app(self) -> None:
+        """退出应用。"""
+        QApplication.instance().quit()
