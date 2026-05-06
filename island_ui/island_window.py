@@ -241,6 +241,8 @@ class IslandWindow(QWidget):
         self._state_machine = state_machine
         self._agents: set[str] = set()
         self._sessions: dict[str, Session] = {}
+        # 已完成的会话自动变灰定时器
+        self._completed_timers: dict[str, QTimer] = {}
 
         self.small_size = (320, 45)
         self.large_size = (380, 320)
@@ -755,6 +757,8 @@ class IslandWindow(QWidget):
                     except Exception as exc:
                         import logging
                         logging.getLogger(__name__).error("插件 %s on_session_ended 失败: %s", plugin.name, exc)
+                # 30 秒后自动将 completed 变为 idle
+                self._schedule_completed_expire(event.session_id)
             self._push_sessions_to_web()
             return
 
@@ -986,7 +990,32 @@ class IslandWindow(QWidget):
         if self.expanded_window.isVisible():
             self.expanded_window.close_to_main()
 
+    def _schedule_completed_expire(self, session_id: str) -> None:
+        """已完成的会话 30 秒后自动变为 idle（灰色）。"""
+        # 取消已有定时器
+        old_timer = self._completed_timers.pop(session_id, None)
+        if old_timer is not None:
+            old_timer.stop()
+
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda: self._expire_completed_session(session_id))
+        timer.start(30000)
+        self._completed_timers[session_id] = timer
+
+    def _expire_completed_session(self, session_id: str) -> None:
+        """将会话从 completed 变为 idle。"""
+        self._completed_timers.pop(session_id, None)
+        session = self._sessions.get(session_id)
+        if session and session.status == "completed":
+            session.status = "idle"
+            self._push_sessions_to_web()
+
     def close_session(self, session_id: str) -> None:
+        # 取消 completed 定时器
+        old_timer = self._completed_timers.pop(session_id, None)
+        if old_timer is not None:
+            old_timer.stop()
         self._sessions.pop(session_id, None)
         self._push_sessions_to_web()
 
