@@ -467,14 +467,10 @@ class ClaudeCodeEventSource(EventSource):
                 payload={"status": status, "cwd": cwd},
             )
             self.event_received.emit(event)
-        else:
-            # 空状态或未知状态，标记为 idle，避免会话永远卡在 running
-            event = ProgressUpdated(
-                session_id=session_id,
-                message="idle",
-                payload={"status": "idle", "cwd": cwd},
-            )
-            self.event_received.emit(event)
+        elif status:
+            # 未知状态（如 "running" 等）不强制覆盖，避免误将活跃会话标记为 idle
+            # 会话结束应通过明确的 SessionEnd 事件或 completed 定时器处理
+            pass
 
     # ------------------------------------------------------------------
     # Socket 事件解析
