@@ -77,6 +77,7 @@ def test_set_sound_enabled_updates_config():
     window = _make_window()
     window.set_sound_enabled(False)
     window._config_manager.set.assert_called_once_with("sound.enabled", False)
+    window._config_manager.save.assert_called_once()
 
 
 def test_set_sound_enabled_no_config_manager_no_exception():
@@ -89,14 +90,17 @@ def test_set_sound_volume_clamps_and_updates_config():
     window = _make_window()
     window.set_sound_volume(150)
     window._config_manager.set.assert_called_once_with("sound.volume", 100)
+    window._config_manager.save.assert_called_once()
 
     window._config_manager.reset_mock()
     window.set_sound_volume(-10)
     window._config_manager.set.assert_called_once_with("sound.volume", 0)
+    window._config_manager.save.assert_called_once()
 
     window._config_manager.reset_mock()
     window.set_sound_volume(50)
     window._config_manager.set.assert_called_once_with("sound.volume", 50)
+    window._config_manager.save.assert_called_once()
 
 
 def test_set_sound_volume_no_config_manager_no_exception():
