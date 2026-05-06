@@ -93,6 +93,7 @@ class SoundPlugin(IslandPlugin):
                 path = os.path.join(music_dir, filename)
             if not os.path.exists(path):
                 logger.warning("音效文件不存在: %s", path)
+                continue  # Skip creating effect for missing file
             effect = QSoundEffect()
             effect.setSource(QUrl.fromLocalFile(path))
             effect.setVolume(self._volume)
@@ -101,7 +102,7 @@ class SoundPlugin(IslandPlugin):
     def on_event(self, event: Event) -> None:
         if not self._enabled or event.type not in self._effects:
             return
-        now = time.time()
+        now = time.monotonic()
         last = self._last_played.get(event.type, 0)
         if (now - last) * 1000 < self._DEBOUNCE_MS:
             return
@@ -110,4 +111,4 @@ class SoundPlugin(IslandPlugin):
             self._effects[event.type].play()
         except Exception:
             import logging
-            logging.getLogger(__name__).debug("音效播放失败: %s", event.type)
+            logging.getLogger(__name__).warning("音效播放失败: %s", event.type, exc_info=True)

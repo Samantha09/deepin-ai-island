@@ -50,4 +50,4 @@ auto_approve:
 
 sound:
   enabled: true
-  volume: 80
+  volume: 50
