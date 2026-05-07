@@ -742,7 +742,8 @@ class IslandWindow(QWidget):
         if isinstance(event, SessionStarted):
             existing = self._sessions.get(event.session_id)
             if existing:
-                existing.status = "running"
+                if existing.status != "completed":
+                    existing.status = "running"
                 existing.add_event(event)
             else:
                 session = Session(
