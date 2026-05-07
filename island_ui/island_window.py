@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -12,7 +13,7 @@ from PySide6.QtGui import QColor, QIcon, QAction, QPixmap, QPainter, QRegion
 
 from island_ui.state_machine import IslandStateMachine, IslandState
 from island_ui.event_source import EventSource
-from island_ui.events import Event, SessionStarted, SessionEnded, ChatMessage
+from island_ui.events import Event, SessionStarted, SessionEnded, ChatMessage, SubagentStarted, SubagentStopped
 from island_ui.session import Session
 from island_ui.plugin import IslandPlugin
 from island_ui import plugin_loader
@@ -767,6 +768,7 @@ class IslandWindow(QWidget):
             if session:
                 session.status = "completed"
                 session.add_event(event)
+                session.clear_subagents()
                 for plugin in self._plugins:
                     try:
                         plugin.on_session_ended(session)
@@ -776,6 +778,31 @@ class IslandWindow(QWidget):
                 # 30 秒后自动将 completed 变为 idle
                 self._schedule_completed_expire(event.session_id)
             self._push_sessions_to_web()
+            return
+
+        if isinstance(event, SubagentStarted):
+            session = self._sessions.get(event.session_id)
+            if not session:
+                # 自动创建会话（如果子 Agent 事件先于 SessionStart）
+                session = Session(
+                    id=event.session_id,
+                    name=event.session_id[:8],
+                    agent="Claude Code",
+                    terminal="",
+                    start_time=event.timestamp,
+                )
+                self._sessions[event.session_id] = session
+            session.add_subagent(event.agent_id, event.agent_type)
+            session.add_event(event)
+            self._push_sessions_to_web()
+            return
+
+        if isinstance(event, SubagentStopped):
+            session = self._sessions.get(event.session_id)
+            if session:
+                session.remove_subagent(event.agent_id)
+                session.add_event(event)
+                self._push_sessions_to_web()
             return
 
         session = self._sessions.get(event.session_id)
@@ -920,6 +947,7 @@ class IslandWindow(QWidget):
                             waiting_action = event.payload.get("action", "")
                             break
             auto_approved = self._session_auto_approve.get(session.id, False)
+            subagents = session.active_subagents()
             sessions_data.append({
                 "id": session.id,
                 "name": session.name,
@@ -931,6 +959,7 @@ class IslandWindow(QWidget):
                 "tmux_session": session.tmux_session,
                 "window_id": session.window_id,
                 "window_title": session.window_title,
+                "subagents": subagents,
             })
 
         total = len(self._sessions)

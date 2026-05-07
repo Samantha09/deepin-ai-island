@@ -23,6 +23,7 @@ class Session:
     window_title: str = ""
     terminal_tty: str = ""
     terminal_app: str = ""
+    subagents: list[dict] = field(default_factory=list)
 
     def is_permission_resolved(self, tool_use_id: str) -> bool:
         return tool_use_id in self.resolved_tool_use_ids
@@ -62,6 +63,35 @@ class Session:
 
     def unresolved_events(self) -> list[Event]:
         return [e for e in self.events if e.type in ("permission.requested", "question.asked")]
+
+    def add_subagent(self, agent_id: str, agent_type: str) -> None:
+        """添加或更新活跃子 Agent。"""
+        for sa in self.subagents:
+            if sa.get("id") == agent_id:
+                sa["type"] = agent_type
+                sa["started_at"] = datetime.now().timestamp()
+                sa.pop("completed_at", None)
+                return
+        self.subagents.append({
+            "id": agent_id,
+            "type": agent_type,
+            "started_at": datetime.now().timestamp(),
+        })
+
+    def remove_subagent(self, agent_id: str) -> None:
+        """标记子 Agent 为已完成。"""
+        for sa in self.subagents:
+            if sa.get("id") == agent_id:
+                sa["completed_at"] = datetime.now().timestamp()
+                break
+
+    def clear_subagents(self) -> None:
+        """清空所有子 Agent（会话结束时调用）。"""
+        self.subagents.clear()
+
+    def active_subagents(self) -> list[dict]:
+        """返回当前仍在运行的子 Agent 列表。"""
+        return [sa for sa in self.subagents if "completed_at" not in sa]
 
     def duration_text(self) -> str:
         delta = int(datetime.now().timestamp() - self.start_time)

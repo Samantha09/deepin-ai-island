@@ -17,6 +17,8 @@ from island_ui.events import (
     QuestionAsked,
     ProgressUpdated,
     ChatMessage,
+    SubagentStarted,
+    SubagentStopped,
 )
 
 SOCKET_PATH = "/tmp/ai-island.sock"
@@ -579,6 +581,23 @@ class ClaudeCodeEventSource(EventSource):
             return SessionEnded(
                 session_id=session_id,
                 payload={"status": "completed", **payload},
+                timestamp=timestamp,
+            )
+
+        if event_name == "SubagentStart":
+            return SubagentStarted(
+                session_id=session_id,
+                agent_id=data.get("agent_id", data.get("agentID", "")),
+                agent_type=data.get("agent_type", data.get("agentType", "")),
+                payload=payload,
+                timestamp=timestamp,
+            )
+
+        if event_name == "SubagentStop":
+            return SubagentStopped(
+                session_id=session_id,
+                agent_id=data.get("agent_id", data.get("agentID", "")),
+                payload=payload,
                 timestamp=timestamp,
             )
 

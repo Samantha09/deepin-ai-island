@@ -80,6 +80,29 @@ class ChatMessage(Event):
 
 
 @dataclass
+class SubagentStarted(Event):
+    type: str = field(default="subagent.started", init=False)
+    agent_id: str = field(default="")
+    agent_type: str = field(default="")
+
+    def __post_init__(self):
+        if self.agent_id and "agent_id" not in self.payload:
+            self.payload["agent_id"] = self.agent_id
+        if self.agent_type and "agent_type" not in self.payload:
+            self.payload["agent_type"] = self.agent_type
+
+
+@dataclass
+class SubagentStopped(Event):
+    type: str = field(default="subagent.stopped", init=False)
+    agent_id: str = field(default="")
+
+    def __post_init__(self):
+        if self.agent_id and "agent_id" not in self.payload:
+            self.payload["agent_id"] = self.agent_id
+
+
+@dataclass
 class Response:
     type: str
     payload: dict = field(default_factory=dict)
@@ -129,6 +152,8 @@ def event_from_dict(data: dict) -> Event:
         "permission.requested": PermissionRequested,
         "question.asked": QuestionAsked,
         "progress.updated": ProgressUpdated,
+        "subagent.started": SubagentStarted,
+        "subagent.stopped": SubagentStopped,
     }
 
     cls = type_map.get(event_type, Event)
@@ -141,5 +166,9 @@ def event_from_dict(data: dict) -> Event:
         return cls(payload=payload, timestamp=timestamp, session_id=session_id, question=payload.get("question", ""), options=payload.get("options"))
     elif cls is ProgressUpdated:
         return cls(payload=payload, timestamp=timestamp, session_id=session_id, message=payload.get("message", ""), percent=payload.get("percent"))
+    elif cls is SubagentStarted:
+        return cls(payload=payload, timestamp=timestamp, session_id=session_id, agent_id=payload.get("agent_id", ""), agent_type=payload.get("agent_type", ""))
+    elif cls is SubagentStopped:
+        return cls(payload=payload, timestamp=timestamp, session_id=session_id, agent_id=payload.get("agent_id", ""))
     else:
         return cls(payload=payload, timestamp=timestamp, session_id=session_id)

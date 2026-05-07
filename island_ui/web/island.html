@@ -425,6 +425,31 @@
       text-decoration: line-through;
       opacity: 0.5;
     }
+    .session-subagents {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 3px;
+      margin-top: 4px;
+      transition: all 200ms ease;
+      overflow: hidden;
+    }
+    .subagent-tag {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.55);
+      background: rgba(102, 232, 248, 0.1);
+      border: 1px solid rgba(102, 232, 248, 0.2);
+      border-radius: 4px;
+      padding: 1px 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 110px;
+      flex-shrink: 0;
+    }
+    .subagent-tag::before {
+      content: "↳ ";
+      opacity: 0.7;
+    }
     .session-waiting {
       font-size: 10px;
       color: #F59E0B;
@@ -843,6 +868,35 @@
           permRow.appendChild(allowBtn);
           permRow.appendChild(allowAllBtn);
           card.appendChild(permRow);
+        }
+
+        // 子 Agent 列表（仅显示活跃中的子 Agent）
+        if (session.subagents && session.subagents.length > 0) {
+          const subagentsEl = document.createElement("div");
+          subagentsEl.className = "session-subagents";
+          session.subagents.forEach(function (sa) {
+            const tag = document.createElement("span");
+            tag.className = "subagent-tag";
+            const label = (sa.type || "subagent").replace(/-/g, " ");
+            const idShort = sa.id ? sa.id.slice(0, 8) : "";
+            tag.textContent = label + (idShort ? " " + idShort : "");
+            // 计算运行时间
+            let durationText = "";
+            if (sa.started_at) {
+              const started = typeof sa.started_at === "number" ? sa.started_at : Date.parse(sa.started_at) / 1000;
+              const elapsed = Math.floor(Date.now() / 1000) - started;
+              if (elapsed < 60) {
+                durationText = elapsed + "s";
+              } else if (elapsed < 3600) {
+                durationText = Math.floor(elapsed / 60) + "m";
+              } else {
+                durationText = Math.floor(elapsed / 3600) + "h";
+              }
+            }
+            tag.title = (sa.type || "subagent") + (idShort ? " | " + idShort : "") + (durationText ? " | " + durationText : "");
+            subagentsEl.appendChild(tag);
+          });
+          card.appendChild(subagentsEl);
         }
 
         sessionList.appendChild(card);
