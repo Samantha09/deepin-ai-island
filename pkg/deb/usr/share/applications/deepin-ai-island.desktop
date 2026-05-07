@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Deepin AI Island
+Name[zh_CN]=Deepin AI Island
+Comment=AI Agent monitoring tool for Deepin
+Comment[zh_CN]=Deepin AI Agent 监控工具
+Exec=/usr/bin/deepin-ai-island
+Icon=deepin-ai-island
+Terminal=false
+Type=Application
+Categories=Utility;System;
+StartupNotify=false

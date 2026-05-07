@@ -1,0 +1,10 @@
+Package: deepin-ai-island
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libgl1, libxkbcommon0
+Maintainer: Samantha09 <samantha09@example.com>
+Description: AI Agent monitoring tool for Deepin/DDE
+ A floating capsule UI that monitors AI Agent sessions,
+ shows permission requests, and allows quick approvals.

@@ -49,7 +49,8 @@ class Session:
             if msg.startswith("等待批准"):
                 self.status = "needs_attention"
             elif msg == "idle" or poll_status == "idle":
-                if self.status != "completed":
+                # 轮poll的 idle 不应覆盖 running，避免活跃会话被误标为灰色
+                if self.status not in ("completed", "running"):
                     self.status = "idle"
             elif poll_status in ("processing", "busy"):
                 if self.status != "completed":
