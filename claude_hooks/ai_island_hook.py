@@ -96,7 +96,7 @@ def _get_terminal_env() -> dict:
                 env["tmux_session"] = result.stdout.strip()
         except Exception:
             pass
-    # 终端窗口信息（参考 open-vibe-island：用 TTY 和终端类型定位，不用 X11 窗口标题）
+    # 终端窗口信息（用 TTY 和终端类型定位，不用 X11 窗口标题）
     window_id = os.environ.get("WINDOWID", "")
     if window_id and window_id != "0":
         env["window_id"] = window_id
@@ -131,7 +131,7 @@ def _get_terminal_env() -> dict:
         except Exception:
             pass
 
-    # 方法3: 通过父进程 TTY（最后手段，open-vibe-island 方案）
+    # 方法3: 通过父进程 TTY（最后手段）
     if "terminal_tty" not in env:
         try:
             ppid = os.getppid()
