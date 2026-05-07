@@ -291,7 +291,7 @@ class ClaudeCodeEventSource(EventSource):
                     "waitingFor": waiting_for,
                     "transcript_path": "",
                 }
-                self._emit_session_started(session_id, cwd)
+                self._emit_session_started(session_id, cwd, status)
                 # 首次发现时立即同步状态，避免空状态会话被默认标记为 running
                 self._handle_status_change(session_id, status, waiting_for, cwd)
             else:
@@ -428,7 +428,7 @@ class ClaudeCodeEventSource(EventSource):
 
         return ""
 
-    def _emit_session_started(self, session_id: str, cwd: str) -> None:
+    def _emit_session_started(self, session_id: str, cwd: str, status: str = "") -> None:
         task = Path(cwd).name if cwd else "Unknown"
         event = SessionStarted(
             session_id=session_id,
@@ -436,6 +436,7 @@ class ClaudeCodeEventSource(EventSource):
                 "agent": "Claude Code",
                 "task": task,
                 "terminal": cwd,
+                "initial_status": status,
             },
         )
         self.event_received.emit(event)

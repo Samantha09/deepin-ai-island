@@ -746,12 +746,15 @@ class IslandWindow(QWidget):
                     existing.status = "running"
                 existing.add_event(event)
             else:
+                initial_status = event.payload.get("initial_status", "")
+                status = initial_status if initial_status in ("idle", "completed") else "running"
                 session = Session(
                     id=event.session_id,
                     name=event.payload.get("task", "Untitled"),
                     agent=agent or "Unknown",
                     terminal=event.payload.get("terminal", "Terminal"),
                     start_time=event.timestamp,
+                    status=status,
                 )
                 self._update_session_terminal(session, event.payload)
                 self._sessions[event.session_id] = session
