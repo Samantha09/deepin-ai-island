@@ -48,6 +48,8 @@ Deepin AI Island — PySide6 (Qt6), Python 3.12+
 
 **分支名规范**：`master` | `dev` | `feature` | `master_xxx` | `dev_xxx` | `feature_xxx` | `maintenance_xxx` | `bugfix`，只能使用英文字母、数字和下划线
 
+**开发分支**：所有开发工作均在 `dev` 分支进行，**修改时不更新 `main` 分支**。`main` 仅用于稳定发布或最终集成。
+
 注意：commit message 中**不要**添加 `Co-Authored-By` 行。
 
 ## 项目特定规范
