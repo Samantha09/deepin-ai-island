@@ -122,6 +122,63 @@
       padding: 2px 0;
     }
 
+    /* Markdown 样式 */
+    .message-bubble p {
+      margin: 0 0 4px 0;
+    }
+    .message-bubble p:last-child {
+      margin-bottom: 0;
+    }
+    .message-bubble code {
+      font-family: "SF Mono", "Fira Code", "DejaVu Sans Mono", monospace;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .message-bubble pre {
+      background: rgba(0, 0, 0, 0.35);
+      padding: 8px 10px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 4px 0;
+      max-width: 100%;
+    }
+    .message-bubble pre code {
+      background: transparent;
+      padding: 0;
+      font-size: 11px;
+    }
+    .message-bubble blockquote {
+      margin: 4px 0;
+      padding-left: 10px;
+      border-left: 3px solid rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .message-bubble ul, .message-bubble ol {
+      margin: 4px 0;
+      padding-left: 18px;
+    }
+    .message-bubble li {
+      margin: 2px 0;
+    }
+    .message-bubble a {
+      color: #66E8F8;
+      text-decoration: none;
+    }
+    .message-bubble a:hover {
+      text-decoration: underline;
+    }
+    .message-bubble hr {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      margin: 8px 0;
+    }
+    .message-bubble strong {
+      color: rgba(255, 255, 255, 0.95);
+    }
+
     /* 审批卡片 */
     .permission-card {
       background: rgba(245, 158, 11, 0.12);
@@ -217,6 +274,113 @@
       });
     });
 
+    // Markdown 渲染（安全转义 + 常用语法）
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    function processInline(text) {
+      text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      text = text.replace(/_([^_]+)_/g, "<em>$1</em>");
+      text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+      text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      return text;
+    }
+    function markdownToHtml(text) {
+      const codeBlocks = [];
+      text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+        const placeholder = "__CODE_BLOCK_" + codeBlocks.length + "__";
+        codeBlocks.push(escapeHtml(code.trim()));
+        return "\n\n" + placeholder + "\n\n";
+      });
+      text = escapeHtml(text);
+
+      const lines = text.split("\n");
+      const result = [];
+      let inList = false;
+      let listItems = [];
+      let listType = null;
+
+      function flushList() {
+        if (inList && listItems.length > 0) {
+          result.push("<" + listType + ">" + listItems.join("") + "</" + listType + ">");
+        }
+        inList = false;
+        listItems = [];
+        listType = null;
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          flushList();
+          continue;
+        }
+
+        if (trimmed.startsWith("__CODE_BLOCK_") && trimmed.endsWith("__")) {
+          flushList();
+          const idx = parseInt(trimmed.match(/__CODE_BLOCK_(\d+)__/)[1], 10);
+          result.push("<pre><code>" + codeBlocks[idx] + "</code></pre>");
+          continue;
+        }
+
+        if (line.startsWith("&gt;")) {
+          flushList();
+          result.push("<blockquote>" + processInline(line.replace(/^&gt; ?/, "")) + "</blockquote>");
+          continue;
+        }
+
+        if (/^---+/.test(trimmed)) {
+          flushList();
+          result.push("<hr>");
+          continue;
+        }
+
+        if (trimmed.startsWith("- ")) {
+          if (!inList || listType !== "ul") {
+            flushList();
+            inList = true;
+            listType = "ul";
+          }
+          listItems.push("<li>" + processInline(trimmed.slice(2)) + "</li>");
+          continue;
+        }
+
+        if (/^\d+\. /.test(trimmed)) {
+          if (!inList || listType !== "ol") {
+            flushList();
+            inList = true;
+            listType = "ol";
+          }
+          const itemText = trimmed.replace(/^\d+\. /, "");
+          listItems.push("<li>" + processInline(itemText) + "</li>");
+          continue;
+        }
+
+        flushList();
+        let paraLines = [line];
+        while (i + 1 < lines.length && lines[i + 1].trim() &&
+               !lines[i + 1].trim().startsWith("__CODE_BLOCK_") &&
+               !lines[i + 1].startsWith("&gt;") &&
+               !/^---+/.test(lines[i + 1].trim()) &&
+               !lines[i + 1].trim().startsWith("- ") &&
+               !/^\d+\. /.test(lines[i + 1].trim())) {
+          paraLines.push(lines[++i]);
+        }
+        const paraHtml = paraLines.map(l => processInline(l)).join("<br>");
+        result.push("<p>" + paraHtml + "</p>");
+      }
+
+      flushList();
+      return result.join("\n");
+    }
+
     window.playEntrance = function () {
       if (!panel) return;
       panel.classList.remove("entered");
@@ -282,7 +446,7 @@
 
       const bubble = document.createElement("div");
       bubble.className = "message-bubble";
-      bubble.textContent = text;
+      bubble.innerHTML = markdownToHtml(text);
 
       row.appendChild(bubble);
       content.appendChild(row);
