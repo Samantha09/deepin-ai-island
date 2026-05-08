@@ -262,7 +262,7 @@ class IslandWindow(QWidget):
         self._completed_timers: dict[str, QTimer] = {}
 
         self.small_size = (320, 45)
-        self.large_size = (380, 320)
+        self.large_size = (460, 320)
         self.top_margin = 16
         self._hovered = False
         self._native_fixed = False
@@ -687,7 +687,7 @@ class IslandWindow(QWidget):
         return QRect(x, y, width, height)
 
     def _on_mask_value_changed(self, height: int) -> None:
-        self.setMask(QRegion(0, 0, self.large_size[0], int(height)))
+        self.setMask(QRegion(0, 0, self.large_size[0], height))
 
     def set_mask_height(self, height: int) -> None:
         if self._mask_anim.state() == QVariantAnimation.State.Running:

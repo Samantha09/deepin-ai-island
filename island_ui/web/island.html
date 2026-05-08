@@ -18,7 +18,8 @@
 
     /* 胶囊容器 */
     #capsule {
-      width: 100%;
+      width: 320px;
+      margin: 0 auto;
       height: 45px;
       border-radius: 20px;
       background: rgba(20, 20, 20, 0.85);
@@ -27,8 +28,9 @@
       border: none;
       outline: none;
       box-shadow: none;
-      transition: height 400ms cubic-bezier(0.22, 1, 0.36, 1);
-      will-change: height;
+      transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1),
+                  height 400ms cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: width, height;
       contain: layout paint;
       display: flex;
       align-items: flex-start;
@@ -36,6 +38,7 @@
       position: relative;
     }
     #capsule.hovered {
+      width: 460px;
       height: 320px;
     }
 
@@ -594,6 +597,8 @@
       html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
       // strikethrough
       html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+      // link
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
       return html;
     }
 
