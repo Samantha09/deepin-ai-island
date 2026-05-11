@@ -14,40 +14,39 @@ auto_approve:
   tools:
     Read: true
     Bash:
-      - ls
-      - pwd
-      - cat
-      - echo
-      - head
-      - tail
-      - grep
-      - find
-      - ps
-      - date
-      - whoami
-      - hostname
-      - id
-      - which
-      - type
-      - stat
-      - file
-      - dirname
-      - basename
-      - readlink
-      - realpath
-      - uname
-      - env
-      - printenv
-      - cd
-      - touch
-      - mkdir
-      - rmdir
-      - rm
-      - cp
-      - mv
-      - chmod
-      - chown
-
+    - ls
+    - pwd
+    - cat
+    - echo
+    - head
+    - tail
+    - grep
+    - find
+    - ps
+    - date
+    - whoami
+    - hostname
+    - id
+    - which
+    - type
+    - stat
+    - file
+    - dirname
+    - basename
+    - readlink
+    - realpath
+    - uname
+    - env
+    - printenv
+    - cd
+    - touch
+    - mkdir
+    - rmdir
+    - rm
+    - cp
+    - mv
+    - chmod
+    - chown
 sound:
   enabled: true
-  volume: 50
+  volume: 46
