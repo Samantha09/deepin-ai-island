@@ -60,7 +60,12 @@ class MockEventSource(EventSource):
             # Session 2: Codex
             (3.0, SessionStarted(session_id=s2, payload={"agent": "Codex", "task": "backend server"})),
             (3.5, ChatMessage(session_id=s2, role="assistant", content="需要部署后端服务，你打算用哪个环境？")),
-            (5.0, QuestionAsked(session_id=s2, question="Which deployment target?", options=["Production", "Staging", "Local only"])),
+            (5.0, QuestionAsked(
+                session_id=s2,
+                question="Which deployment target?",
+                options=["Production", "Staging", "Local only"],
+                payload={"tool_use_id": "mock-question-001"},
+            )),
             (5.5, ChatMessage(session_id=s2, role="user", content="Staging")),
             (7.0, ChatMessage(session_id=s2, role="assistant", content="好的，正在部署到 Staging 环境...")),
             (9.0, SessionEnded(session_id=s2, payload={"status": "completed"})),
