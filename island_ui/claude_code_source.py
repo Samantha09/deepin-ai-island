@@ -603,8 +603,8 @@ class ClaudeCodeEventSource(EventSource):
             )
 
         if event_name in ("QuestionAsked", "question.asked"):
-            question = payload.get("question", "")
-            options = payload.get("options")
+            question = payload.get("question") or data.get("question", "")
+            options = payload.get("options") or data.get("options")
             return QuestionAsked(
                 session_id=session_id,
                 question=question,
