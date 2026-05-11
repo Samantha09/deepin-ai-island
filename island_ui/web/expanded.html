@@ -179,6 +179,97 @@
       color: rgba(255, 255, 255, 0.95);
     }
 
+    /* 提问卡片 */
+    .question-card {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .question-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #3B82F6;
+      margin-bottom: 8px;
+    }
+    .question-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .question-option-btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 140ms ease;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.9);
+      text-align: left;
+    }
+    .question-option-btn:hover {
+      background: rgba(59, 130, 246, 0.35);
+      color: #fff;
+    }
+    .question-other-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .question-other-btn .edit-icon {
+      font-size: 13px;
+      opacity: 0.6;
+    }
+    .question-input-area {
+      display: none;
+      margin-top: 6px;
+      gap: 6px;
+    }
+    .question-input-area.expanded {
+      display: flex;
+    }
+    .question-input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.25);
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 12px;
+      outline: none;
+    }
+    .question-input::placeholder {
+      color: rgba(255, 255, 255, 0.35);
+    }
+    .question-send-btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(59, 130, 246, 0.85);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 140ms ease;
+    }
+    .question-send-btn:hover {
+      background: rgba(59, 130, 246, 1);
+    }
+    .question-card.answered {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .question-answer-result {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(59, 130, 246, 0.15);
+    }
+
     /* 审批卡片 */
     .permission-card {
       background: rgba(245, 158, 11, 0.12);
@@ -431,7 +522,11 @@
         }
       } else if (type === "question.asked") {
         const question = payload.question || "";
-        addMessage("assistant", "❓ " + question);
+        const options = payload.options || [];
+        const toolUseId = payload.tool_use_id || "";
+        if (!resolvedPermissions.has(toolUseId)) {
+          addQuestionCard(toolUseId, question, options);
+        }
       } else if (type === "progress.updated") {
         const msg = payload.message || "";
         if (msg && msg !== "idle") {
@@ -514,6 +609,93 @@
       resolvedPermissions.add(toolUseId);
       if (bridge) {
         bridge.respondPermission(currentSessionId, approved);
+      }
+    }
+
+    function addQuestionCard(toolUseId, question, options) {
+      const card = document.createElement("div");
+      card.className = "question-card";
+      card.dataset.toolUseId = toolUseId;
+
+      const title = document.createElement("div");
+      title.className = "question-title";
+      title.textContent = "❓ " + (question || "请选择一个选项");
+
+      const optionsContainer = document.createElement("div");
+      optionsContainer.className = "question-options";
+
+      // 渲染选项按钮
+      (options || []).forEach(function (opt) {
+        const btn = document.createElement("button");
+        btn.className = "question-option-btn";
+        btn.textContent = opt;
+        btn.addEventListener("click", function () {
+          respondQuestion(toolUseId, opt);
+          card.classList.add("answered");
+          const result = document.createElement("div");
+          result.className = "question-answer-result";
+          result.textContent = "已选择: " + opt;
+          card.appendChild(result);
+        });
+        optionsContainer.appendChild(btn);
+      });
+
+      // "其他..." 按钮 + 输入框
+      const otherBtn = document.createElement("button");
+      otherBtn.className = "question-option-btn question-other-btn";
+      otherBtn.innerHTML = '<span>其他...</span><span class="edit-icon">✎</span>';
+
+      const inputArea = document.createElement("div");
+      inputArea.className = "question-input-area";
+
+      const input = document.createElement("input");
+      input.className = "question-input";
+      input.type = "text";
+      input.placeholder = "请输入你的回答...";
+
+      const sendBtn = document.createElement("button");
+      sendBtn.className = "question-send-btn";
+      sendBtn.textContent = "发送";
+
+      inputArea.appendChild(input);
+      inputArea.appendChild(sendBtn);
+
+      otherBtn.addEventListener("click", function () {
+        inputArea.classList.toggle("expanded");
+        if (inputArea.classList.contains("expanded")) {
+          input.focus();
+        }
+      });
+
+      function submitCustomAnswer() {
+        const val = input.value.trim();
+        if (!val) return;
+        respondQuestion(toolUseId, val);
+        card.classList.add("answered");
+        const result = document.createElement("div");
+        result.className = "question-answer-result";
+        result.textContent = "已输入: " + val;
+        card.appendChild(result);
+      }
+
+      sendBtn.addEventListener("click", submitCustomAnswer);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") submitCustomAnswer();
+      });
+
+      optionsContainer.appendChild(otherBtn);
+      optionsContainer.appendChild(inputArea);
+
+      card.appendChild(title);
+      card.appendChild(optionsContainer);
+
+      content.appendChild(card);
+    }
+
+    function respondQuestion(toolUseId, answer) {
+      resolvedPermissions.add(toolUseId);
+      if (bridge) {
+        bridge.respondQuestion(currentSessionId, answer);
       }
     }
   </script>
