@@ -146,8 +146,9 @@ class ExpandedWindow(QWidget):
         self.channel.registerObject("pyisland", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
 
+        import time
         html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "expanded.html")
-        self.web_view.load(QUrl.fromLocalFile(html_path))
+        self.web_view.load(QUrl("file://" + html_path + "?v=" + str(int(time.time()))))
         self.web_view.hide()
 
         self.animation = QPropertyAnimation(self, b"geometry")
@@ -321,8 +322,9 @@ class IslandWindow(QWidget):
         self.channel.registerObject("pyisland", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
 
+        import time
         html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "island.html")
-        self.web_view.load(QUrl.fromLocalFile(html_path))
+        self.web_view.load(QUrl("file://" + html_path + "?v=" + str(int(time.time()))))
         self.web_view.loadFinished.connect(self._on_web_load_finished)
 
         self.expanded_window = ExpandedWindow(self)
@@ -913,6 +915,10 @@ class IslandWindow(QWidget):
                 action = event.payload.get("action", "")
                 text = action[:80] + "..." if len(action) > 80 else action
                 summaries.append(f"需要审批: {text}")
+            elif event.type == "question.asked":
+                question = event.payload.get("question", "")
+                text = question[:80] + "..." if len(question) > 80 else question
+                summaries.append(f"提问: {text}")
             elif event.type == "progress.updated":
                 msg = event.payload.get("message", "")
                 if msg and msg != "idle":
@@ -925,7 +931,7 @@ class IslandWindow(QWidget):
                 break
         if not summaries:
             if session.status == "needs_attention":
-                return ["等待审批..."]
+                return ["需要处理..."]
             elif session.status == "running":
                 return ["运行中..."]
             elif session.status == "completed":
@@ -954,13 +960,18 @@ class IslandWindow(QWidget):
         sessions_data = []
         for session in waiting_sessions + running_sessions + other_sessions:
             waiting_action = ""
+            waiting_question = ""
             if session.status == "needs_attention":
-                # 查找最近的未解决 permission 事件
                 for event in reversed(session.events):
                     if event.type == "permission.requested":
                         tid = event.payload.get("tool_use_id", "")
                         if not session.is_permission_resolved(tid):
                             waiting_action = event.payload.get("action", "")
+                            break
+                    elif event.type == "question.asked":
+                        tid = event.payload.get("tool_use_id", "")
+                        if not session.is_permission_resolved(tid):
+                            waiting_question = event.payload.get("question", "")
                             break
             auto_approved = self._session_auto_approve.get(session.id, False)
             subagents = session.active_subagents()
@@ -970,6 +981,7 @@ class IslandWindow(QWidget):
                 "agent": session.agent,
                 "status": session.status,
                 "waiting_action": waiting_action,
+                "waiting_question": waiting_question,
                 "summary": self._build_session_summary(session),
                 "auto_approved": auto_approved,
                 "tmux_session": session.tmux_session,

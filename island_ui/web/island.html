@@ -735,7 +735,7 @@
       // 更新中间信息
       if (waiting > 0) {
         const firstWaiting = sessions.find(s => s.status === "needs_attention");
-        centerInfo.textContent = firstWaiting ? firstWaiting.name : ("需要审批: " + waiting);
+        centerInfo.textContent = firstWaiting ? firstWaiting.name : ("需要处理: " + waiting);
       } else if (active > 0) {
         centerInfo.textContent = active + " 个会话运行中";
       } else if (total > 0) {
@@ -755,7 +755,7 @@
         const card = document.createElement("div");
         card.className = "session-card";
         card.addEventListener("click", function () {
-          if (bridge) bridge.jumpToTerminal(session.id);
+          if (bridge) bridge.selectSession(session.id);
         });
 
         const row = document.createElement("div");
@@ -798,6 +798,17 @@
         });
         row.appendChild(autoBtn);
 
+        const jumpBtn = document.createElement("button");
+        jumpBtn.className = "session-close-btn";
+        jumpBtn.type = "button";
+        jumpBtn.title = "跳转终端";
+        jumpBtn.innerHTML = '<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M512 128a384 384 0 1 0 0 768 384 384 0 0 0 0-768z m0 64a320 320 0 1 1 0 640 320 320 0 0 1 0-640z m-32 192a32 32 0 0 1 0 64H352a32 32 0 0 1 0-64h128z m0 128a32 32 0 0 1 0 64H352a32 32 0 0 1 0-64h128z m160-128a32 32 0 0 1 32 32v128a32 32 0 0 1-64 0V416a32 32 0 0 1 32-32z"/></svg>';
+        jumpBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (bridge) bridge.jumpToTerminal(session.id);
+        });
+        row.appendChild(jumpBtn);
+
         const closeBtn = document.createElement("button");
         closeBtn.className = "session-close-btn";
         closeBtn.type = "button";
@@ -825,54 +836,71 @@
         });
         card.appendChild(summaryEl);
 
-        // 只要状态是 needs_attention 就显示审批按钮
+        // needs_attention 状态：根据类型显示审批按钮或提问提示
         if (session.status === "needs_attention") {
           if (session.waiting_action) {
             const waitingText = document.createElement("div");
             waitingText.className = "session-waiting";
             waitingText.innerHTML = "需要审批: " + markdownToHtml(session.waiting_action);
             card.appendChild(waitingText);
+
+            const permRow = document.createElement("div");
+            permRow.className = "quick-perm";
+
+            const denyBtn = document.createElement("button");
+            denyBtn.className = "quick-deny";
+            denyBtn.textContent = "拒绝";
+            denyBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              if (bridge) bridge.respondPermission(session.id, false);
+              card.style.opacity = "0.5";
+              card.style.pointerEvents = "none";
+            });
+
+            const allowBtn = document.createElement("button");
+            allowBtn.className = "quick-allow";
+            allowBtn.textContent = "允许一次";
+            allowBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              if (bridge) bridge.respondPermission(session.id, true);
+              card.style.opacity = "0.5";
+              card.style.pointerEvents = "none";
+            });
+
+            const allowAllBtn = document.createElement("button");
+            allowAllBtn.className = "quick-allow-all";
+            allowAllBtn.textContent = "允许所有";
+            allowAllBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              if (bridge) {
+                bridge.allowAllPermission(session.id, session.waiting_action);
+              }
+              card.style.opacity = "0.5";
+              card.style.pointerEvents = "none";
+            });
+
+            permRow.appendChild(denyBtn);
+            permRow.appendChild(allowBtn);
+            permRow.appendChild(allowAllBtn);
+            card.appendChild(permRow);
+          } else if (session.waiting_question) {
+            const waitingText = document.createElement("div");
+            waitingText.className = "session-waiting";
+            waitingText.innerHTML = "需要回答: " + markdownToHtml(session.waiting_question);
+            card.appendChild(waitingText);
+
+            const hintText = document.createElement("div");
+            hintText.className = "session-waiting";
+            hintText.style.color = "rgba(255, 255, 255, 0.5)";
+            hintText.style.fontSize = "10px";
+            hintText.textContent = "点击进入详情回答";
+            card.appendChild(hintText);
+          } else {
+            const waitingText = document.createElement("div");
+            waitingText.className = "session-waiting";
+            waitingText.textContent = "等待处理...";
+            card.appendChild(waitingText);
           }
-
-          const permRow = document.createElement("div");
-          permRow.className = "quick-perm";
-
-          const denyBtn = document.createElement("button");
-          denyBtn.className = "quick-deny";
-          denyBtn.textContent = "拒绝";
-          denyBtn.addEventListener("click", function (e) {
-            e.stopPropagation();
-            if (bridge) bridge.respondPermission(session.id, false);
-            card.style.opacity = "0.5";
-            card.style.pointerEvents = "none";
-          });
-
-          const allowBtn = document.createElement("button");
-          allowBtn.className = "quick-allow";
-          allowBtn.textContent = "允许一次";
-          allowBtn.addEventListener("click", function (e) {
-            e.stopPropagation();
-            if (bridge) bridge.respondPermission(session.id, true);
-            card.style.opacity = "0.5";
-            card.style.pointerEvents = "none";
-          });
-
-          const allowAllBtn = document.createElement("button");
-          allowAllBtn.className = "quick-allow-all";
-          allowAllBtn.textContent = "允许所有";
-          allowAllBtn.addEventListener("click", function (e) {
-            e.stopPropagation();
-            if (bridge) {
-              bridge.allowAllPermission(session.id, session.waiting_action);
-            }
-            card.style.opacity = "0.5";
-            card.style.pointerEvents = "none";
-          });
-
-          permRow.appendChild(denyBtn);
-          permRow.appendChild(allowBtn);
-          permRow.appendChild(allowAllBtn);
-          card.appendChild(permRow);
         }
 
         // 子 Agent 列表（仅显示活跃中的子 Agent）
