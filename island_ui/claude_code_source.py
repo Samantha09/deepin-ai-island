@@ -107,6 +107,27 @@ class SocketServerThread(QThread):
                 self._pending.pop(tool_use_id, None)
         return True
 
+    def respond_to_question(self, tool_use_id: str, answer: str) -> bool:
+        """向等待中的 question.asked 客户端发送用户答案。"""
+        with self._lock:
+            pending = self._pending.get(tool_use_id)
+            if pending is None:
+                return False
+            client_sock, event_obj, _ = pending
+
+        response = {"answer": answer}
+        try:
+            data = json.dumps(response, ensure_ascii=False).encode("utf-8")
+            client_sock.sendall(data)
+            client_sock.close()
+        except OSError:
+            pass
+        finally:
+            event_obj.set()
+            with self._lock:
+                self._pending.pop(tool_use_id, None)
+        return True
+
     # ------------------------------------------------------------------
     # Tool Use ID Cache (PreToolUse -> PermissionRequest correlation)
     # ------------------------------------------------------------------
@@ -210,6 +231,32 @@ class SocketServerThread(QThread):
                 self.event_received.emit(data)
                 return
 
+        if event_name in ("QuestionAsked", "question.asked"):
+            resolved_tool_use_id = tool_use_id
+            if not resolved_tool_use_id:
+                resolved_tool_use_id = self._pop_cached_tool_use_id(session_id, tool_name, tool_input)
+
+            if resolved_tool_use_id:
+                data["tool_use_id"] = resolved_tool_use_id
+                event_obj = threading.Event()
+                with self._lock:
+                    self._pending[resolved_tool_use_id] = (client, event_obj, time.time())
+                self.event_received.emit(data)
+                event_obj.wait(timeout=86400)
+                with self._lock:
+                    if resolved_tool_use_id in self._pending:
+                        try:
+                            client.sendall(json.dumps({"answer": ""}).encode("utf-8"))
+                            client.close()
+                        except OSError:
+                            pass
+                        self._pending.pop(resolved_tool_use_id, None)
+                return
+            else:
+                client.close()
+                self.event_received.emit(data)
+                return
+
         # Non-permission events: close socket immediately
         try:
             client.close()
@@ -254,6 +301,9 @@ class ClaudeCodeEventSource(EventSource):
 
     def respond_to_permission(self, tool_use_id: str, decision: str, reason: str = "") -> bool:
         return self._server.respond_to_permission(tool_use_id, decision, reason)
+
+    def respond_to_question(self, tool_use_id: str, answer: str) -> bool:
+        return self._server.respond_to_question(tool_use_id, answer)
 
     # ------------------------------------------------------------------
     # Session 文件轮询
@@ -548,6 +598,17 @@ class ClaudeCodeEventSource(EventSource):
             return PermissionRequested(
                 session_id=session_id,
                 action=action,
+                payload={"tool_use_id": payload.get("tool_use_id", ""), **payload},
+                timestamp=timestamp,
+            )
+
+        if event_name in ("QuestionAsked", "question.asked"):
+            question = payload.get("question", "")
+            options = payload.get("options")
+            return QuestionAsked(
+                session_id=session_id,
+                question=question,
+                options=options,
                 payload={"tool_use_id": payload.get("tool_use_id", ""), **payload},
                 timestamp=timestamp,
             )
