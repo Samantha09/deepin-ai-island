@@ -170,10 +170,10 @@ def send_event_and_wait(data: dict) -> dict:
         # Claude Code 会回退到终端默认行为（自己弹权限提示）
         return {}
 
-    # 只有 PermissionRequest 需要等待响应
+    # PermissionRequest 和 QuestionAsked 需要等待响应
     # Claude Code 使用 hook_event_name 而不是 event 字段
     event_name = data.get("event") or data.get("hook_event_name", "")
-    if event_name == "PermissionRequest":
+    if event_name in ("PermissionRequest", "QuestionAsked", "question.asked"):
         sock.settimeout(PERMISSION_TIMEOUT)
         try:
             chunks = []
@@ -189,10 +189,15 @@ def send_event_and_wait(data: dict) -> dict:
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     continue
         except socket.timeout:
-            # 超时默认拒绝
-            return {"decision": "deny", "reason": "timeout"}
+            if event_name == "PermissionRequest":
+                return {"decision": "deny", "reason": "timeout"}
+            else:
+                return {"answer": ""}
         except OSError:
-            return {"decision": "deny", "reason": "connection lost"}
+            if event_name == "PermissionRequest":
+                return {"decision": "deny", "reason": "connection lost"}
+            else:
+                return {"answer": ""}
     else:
         # 其他事件不需要响应，直接关闭
         sock.close()
@@ -228,30 +233,42 @@ def main():
 
     # 如果有响应，包装成 Claude Code 需要的格式后输出
     if response:
-        # Claude Code PermissionRequest hook 需要特定的响应格式
-        # 参考: https://smartscope.blog/en/generative-ai/claude/claude-code-hooks-guide/
-        # AI Island 返回 {"decision": "allow"} 或 {"decision": "deny", "reason": "..."}
+        # PermissionRequest 响应包装
         decision = response.get("decision", "")
         if not decision:
             # 兼容旧格式 {"approved": true}
             decision = "allow" if response.get("approved") else "deny"
-
-        wrapped = {
-            "hookSpecificOutput": {
-                "hookEventName": "PermissionRequest",
-                "decision": {
-                    "behavior": decision
+        if decision:
+            wrapped = {
+                "hookSpecificOutput": {
+                    "hookEventName": "PermissionRequest",
+                    "decision": {
+                        "behavior": decision
+                    }
                 }
             }
-        }
-        if decision == "deny":
-            reason = response.get("reason", "")
-            if reason:
-                wrapped["hookSpecificOutput"]["decision"]["message"] = reason
-            else:
-                wrapped["hookSpecificOutput"]["decision"]["message"] = "Denied by user via AI Island"
-        print(json.dumps(wrapped), file=sys.stdout)
-        sys.stdout.flush()
+            if decision == "deny":
+                reason = response.get("reason", "")
+                if reason:
+                    wrapped["hookSpecificOutput"]["decision"]["message"] = reason
+                else:
+                    wrapped["hookSpecificOutput"]["decision"]["message"] = "Denied by user via AI Island"
+            print(json.dumps(wrapped), file=sys.stdout)
+            sys.stdout.flush()
+            sys.exit(0)
+
+        # QuestionAsked 响应包装
+        answer = response.get("answer", "")
+        if answer or "answer" in response:
+            wrapped = {
+                "hookSpecificOutput": {
+                    "hookEventName": "QuestionAsked",
+                    "answer": answer
+                }
+            }
+            print(json.dumps(wrapped), file=sys.stdout)
+            sys.stdout.flush()
+            sys.exit(0)
 
     sys.exit(0)
 
