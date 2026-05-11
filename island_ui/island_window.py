@@ -46,6 +46,10 @@ class IslandBridge(QObject):
     def allowAllPermission(self, session_id: str, action: str) -> None:
         self.window.allow_all_permission(session_id, action)
 
+    @Slot(str, str)
+    def respondQuestion(self, session_id: str, answer: str) -> None:
+        self.window.respond_question(session_id, answer)
+
     @Slot(str)
     def closeSession(self, session_id: str) -> None:
         self.window.close_session(session_id)
@@ -101,6 +105,10 @@ class ExpandedBridge(QObject):
     @Slot(str, str)
     def allowAllPermission(self, session_id: str, action: str) -> None:
         self.window.main_window.allow_all_permission(session_id, action)
+
+    @Slot(str, str)
+    def respondQuestion(self, session_id: str, answer: str) -> None:
+        self.window.main_window.respond_question(session_id, answer)
 
 
 class ExpandedWindow(QWidget):
@@ -867,6 +875,10 @@ class IslandWindow(QWidget):
             # 审批到达时自动触发悬停展开效果（显示会话列表而非详情页），5s 后自动收回
             self._auto_expand_for_permission()
 
+        # 提问事件：自动触发悬停展开效果
+        if event.type == "question.asked":
+            self._auto_expand_for_permission()
+
         self._push_sessions_to_web()
 
     def _auto_expand_for_permission(self) -> None:
@@ -1036,6 +1048,25 @@ class IslandWindow(QWidget):
             user_text = "允许所有" if approved else "拒绝所有"
             session.add_event(ChatMessage(session_id=session.id, role="user", content=user_text))
             self._push_sessions_to_web()
+        if self.expanded_window.isVisible():
+            self.expanded_window.close_to_main()
+
+    def respond_question(self, session_id: str, answer: str) -> None:
+        """处理用户从 Question Card 提交的答案。"""
+        self._permission_auto_close_timer.stop()
+        session = self._sessions.get(session_id)
+        if not session:
+            return
+        # 找到最近的未解决 question 事件
+        for event in reversed(session.events):
+            if event.type == "question.asked":
+                tid = event.payload.get("tool_use_id", "")
+                if tid and hasattr(self._event_source, "respond_to_question"):
+                    self._event_source.respond_to_question(tid, answer)
+                session.mark_permission_resolved(tid)
+                session.add_event(ChatMessage(session_id=session.id, role="user", content=answer))
+                self._push_sessions_to_web()
+                break
         if self.expanded_window.isVisible():
             self.expanded_window.close_to_main()
 
