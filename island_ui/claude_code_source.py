@@ -207,6 +207,10 @@ class SocketServerThread(QThread):
             resolved_tool_use_id = tool_use_id
             if not resolved_tool_use_id:
                 resolved_tool_use_id = self._pop_cached_tool_use_id(session_id, tool_name, tool_input)
+            # AskUserQuestion 没有 PreToolUse 缓存，生成合成 ID 以支持双向响应
+            if not resolved_tool_use_id and tool_name == "AskUserQuestion":
+                import uuid as _uuid
+                resolved_tool_use_id = f"ask-{_uuid.uuid4().hex[:12]}"
 
             if resolved_tool_use_id:
                 # Inject resolved tool_use_id back into data so parser can use it
@@ -591,9 +595,31 @@ class ClaudeCodeEventSource(EventSource):
             )
 
         if event_name == "PermissionRequest":
-            # tool 可能在顶层 data 中（tool_name / tool），也可能在 payload 中
             tool = payload.get("tool") or data.get("tool_name") or data.get("tool") or "Unknown"
             tool_input = payload.get("tool_input") or data.get("tool_input") or {}
+
+            # AskUserQuestion 通过 PermissionRequest hook 发送，需路由为 QuestionAsked
+            if tool == "AskUserQuestion":
+                questions = tool_input.get("questions", [])
+                q = questions[0] if questions else {}
+                question_text = q.get("question", "")
+                raw_options = q.get("options", [])
+                labels = [opt.get("label", "") for opt in raw_options]
+                return QuestionAsked(
+                    session_id=session_id,
+                    question=question_text,
+                    options=labels if labels else None,
+                    payload={
+                        "tool_use_id": payload.get("tool_use_id", ""),
+                        "header": q.get("header", ""),
+                        "raw_options": raw_options,
+                        "multiSelect": q.get("multiSelect", False),
+                        "_from_permission_request": True,
+                        **payload,
+                    },
+                    timestamp=timestamp,
+                )
+
             action = self._format_action(tool, tool_input)
             return PermissionRequested(
                 session_id=session_id,

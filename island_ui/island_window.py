@@ -1073,8 +1073,13 @@ class IslandWindow(QWidget):
         for event in reversed(session.events):
             if event.type == "question.asked":
                 tid = event.payload.get("tool_use_id", "")
-                if tid and hasattr(self._event_source, "respond_to_question"):
-                    self._event_source.respond_to_question(tid, answer)
+                from_permission = event.payload.get("_from_permission_request", False)
+                if tid:
+                    # AskUserQuestion 来源于 PermissionRequest，用 deny + 答案回传
+                    if from_permission and hasattr(self._event_source, "respond_to_permission"):
+                        self._event_source.respond_to_permission(tid, "deny", answer)
+                    elif hasattr(self._event_source, "respond_to_question"):
+                        self._event_source.respond_to_question(tid, answer)
                 session.mark_permission_resolved(tid)
                 session.add_event(ChatMessage(session_id=session.id, role="user", content=answer))
                 self._push_sessions_to_web()
