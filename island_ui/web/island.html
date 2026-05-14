@@ -963,11 +963,7 @@
         const card = document.createElement("div");
         card.className = "session-card";
         card.addEventListener("click", function () {
-          if (session.waiting_question) {
-            if (bridge) bridge.selectSession(session.id);
-          } else {
-            if (bridge) bridge.jumpToTerminal(session.id);
-          }
+          if (bridge) bridge.jumpToTerminal(session.id);
         });
 
         const row = document.createElement("div");
@@ -1101,12 +1097,15 @@
             waitingText.innerHTML = "需要回答: " + markdownToHtml(session.waiting_question);
             card.appendChild(waitingText);
 
-            const hintText = document.createElement("div");
-            hintText.className = "session-waiting";
-            hintText.style.color = "rgba(255, 255, 255, 0.5)";
-            hintText.style.fontSize = "10px";
-            hintText.textContent = "点击进入详情回答";
-            card.appendChild(hintText);
+            const answerBtn = document.createElement("button");
+            answerBtn.className = "quick-allow";
+            answerBtn.textContent = "回答";
+            answerBtn.style.marginTop = "4px";
+            answerBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              if (bridge) bridge.selectSession(session.id);
+            });
+            card.appendChild(answerBtn);
           } else {
             const waitingText = document.createElement("div");
             waitingText.className = "session-waiting";
