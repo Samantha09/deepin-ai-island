@@ -1098,18 +1098,13 @@
           } else if (session.waiting_question) {
             const waitingText = document.createElement("div");
             waitingText.className = "session-waiting";
+            waitingText.style.cursor = "pointer";
             waitingText.innerHTML = "需要回答: " + markdownToHtml(session.waiting_question);
-            card.appendChild(waitingText);
-
-            const answerBtn = document.createElement("button");
-            answerBtn.className = "quick-allow";
-            answerBtn.textContent = "回答";
-            answerBtn.style.marginTop = "4px";
-            answerBtn.addEventListener("click", function (e) {
+            waitingText.addEventListener("click", function (e) {
               e.stopPropagation();
               if (bridge) bridge.selectSession(session.id);
             });
-            card.appendChild(answerBtn);
+            card.appendChild(waitingText);
           } else {
             const waitingText = document.createElement("div");
             waitingText.className = "session-waiting";
