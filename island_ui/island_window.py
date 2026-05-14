@@ -117,7 +117,7 @@ class ExpandedWindow(QWidget):
     def __init__(self, main_window: "IslandWindow") -> None:
         super().__init__()
         self.main_window = main_window
-        self.target_size = (380, 420)
+        self.target_size = (460, 420)
         self.setWindowFlags(main_window.base_flags)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
@@ -1125,11 +1125,14 @@ class IslandWindow(QWidget):
         self._leave_timer.stop()
         self._hover_debounce_timer.stop()
         source_rect = self.geometry()
+        self.hide()
         self.expanded_window.open_from(source_rect)
 
     def on_expanded_closed(self) -> None:
         """ExpandedWindow 关闭后恢复主窗口 hover 检测。"""
         self._expanded_open = False
+        self.show()
+        self.raise_()
         self._permission_auto_close_timer.stop()
         # 如果之前处于权限通知自动展开状态，需要清理，否则 Island 会永远展开
         if self._permission_notify_expanded:

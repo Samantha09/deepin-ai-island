@@ -531,6 +531,194 @@
       font-size: 12px;
       padding: 8px 0;
     }
+
+    /* 详情视图 */
+    #detail-view {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      opacity: 0;
+      flex-direction: column;
+      padding: 12px;
+      box-sizing: border-box;
+      transition: opacity 180ms ease-out;
+      overflow: hidden;
+      z-index: 5;
+    }
+    #detail-view.active {
+      display: flex;
+      opacity: 1;
+    }
+    #detail-back-btn {
+      position: absolute;
+      top: 8px; left: 10px;
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 13px;
+      cursor: pointer;
+      z-index: 10;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 140ms ease;
+    }
+    #detail-back-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    #detail-header {
+      padding: 8px 0 6px 28px;
+      flex-shrink: 0;
+    }
+    #detail-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.95);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #detail-agent {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+    }
+    #detail-content {
+      flex: 1;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    #detail-content::-webkit-scrollbar { width: 0; background: transparent; }
+
+    /* 消息气泡 */
+    .message-row {
+      display: flex;
+      margin-bottom: 8px;
+      align-items: flex-start;
+    }
+    .message-row.user { justify-content: flex-end; }
+    .message-row.assistant { justify-content: flex-start; }
+    .message-bubble {
+      max-width: 85%;
+      padding: 8px 12px;
+      border-radius: 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .message-row.user .message-bubble {
+      background: rgba(52, 152, 219, 0.25);
+      color: rgba(255, 255, 255, 0.92);
+      border-bottom-right-radius: 4px;
+    }
+    .message-row.assistant .message-bubble {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.9);
+      border-bottom-left-radius: 4px;
+    }
+    .message-row.system .message-bubble {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 11px;
+      padding: 2px 0;
+    }
+
+    /* Markdown 样式 */
+    .message-bubble p { margin: 0 0 4px 0; }
+    .message-bubble p:last-child { margin-bottom: 0; }
+    .message-bubble code {
+      font-family: "SF Mono", "Fira Code", "DejaVu Sans Mono", monospace;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .message-bubble pre {
+      background: rgba(0, 0, 0, 0.35);
+      padding: 8px 10px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 4px 0;
+      max-width: 100%;
+    }
+    .message-bubble pre code { background: transparent; padding: 0; font-size: 11px; }
+    .message-bubble blockquote {
+      margin: 4px 0;
+      padding-left: 10px;
+      border-left: 3px solid rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .message-bubble ul, .message-bubble ol { margin: 4px 0; padding-left: 18px; }
+    .message-bubble li { margin: 2px 0; }
+    .message-bubble a { color: #66E8F8; text-decoration: none; }
+    .message-bubble a:hover { text-decoration: underline; }
+    .message-bubble hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 8px 0; }
+    .message-bubble strong { color: rgba(255, 255, 255, 0.95); }
+
+    /* 提问卡片 */
+    .question-card {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .question-title { font-size: 12px; font-weight: 600; color: #3B82F6; margin-bottom: 8px; }
+    .question-options { display: flex; flex-direction: column; gap: 6px; }
+    .question-option-btn {
+      padding: 8px 12px; border: none; border-radius: 10px; font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 140ms ease;
+      background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.9); text-align: left;
+    }
+    .question-option-btn:hover { background: rgba(59, 130, 246, 0.35); color: #fff; }
+    .question-other-btn { display: flex; align-items: center; justify-content: space-between; }
+    .question-other-btn .edit-icon { font-size: 13px; opacity: 0.6; }
+    .question-input-area { display: none; margin-top: 6px; gap: 6px; }
+    .question-input-area.expanded { display: flex; }
+    .question-input {
+      flex: 1; padding: 8px 10px; border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 8px; background: rgba(0, 0, 0, 0.25); color: rgba(255, 255, 255, 0.9);
+      font-size: 12px; outline: none;
+    }
+    .question-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+    .question-send-btn {
+      padding: 8px 14px; border: none; border-radius: 8px;
+      background: rgba(59, 130, 246, 0.85); color: #fff;
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all 140ms ease;
+    }
+    .question-send-btn:hover { background: rgba(59, 130, 246, 1); }
+    .question-card.answered { opacity: 0.5; pointer-events: none; }
+    .question-answer-result { font-size: 12px; color: rgba(255, 255, 255, 0.6); margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(59, 130, 246, 0.15); }
+
+    /* 审批卡片 */
+    .permission-card {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .permission-title { font-size: 12px; font-weight: 600; color: #F59E0B; margin-bottom: 4px; }
+    .permission-action {
+      font-size: 12px; color: rgba(255, 255, 255, 0.75); margin-bottom: 10px;
+      font-family: 'DejaVu Sans Mono', monospace;
+    }
+    .permission-buttons { display: flex; gap: 8px; }
+    .perm-btn {
+      flex: 1; padding: 8px 0; border: none; border-radius: 10px;
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all 140ms ease;
+    }
+    .perm-btn-deny { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); }
+    .perm-btn-deny:hover { background: rgba(255, 255, 255, 0.14); }
+    .perm-btn-allow { background: rgba(52, 199, 89, 0.85); color: #000000; }
+    .perm-btn-allow:hover { background: rgba(52, 199, 89, 1); }
+    .perm-btn-allow-all { background: rgba(52, 199, 89, 0.55); color: #000000; }
+    .perm-btn-allow-all:hover { background: rgba(52, 199, 89, 0.75); }
+
+    /* 空状态 */
+    .empty-detail { text-align: center; color: rgba(255, 255, 255, 0.3); font-size: 12px; padding: 40px 0; }
   </style>
 </head>
 <body>
@@ -565,6 +753,16 @@
       </div>
       <div id="hover-hint">悬停展开</div>
     </div>
+    <div id="detail-view">
+      <button id="detail-back-btn" type="button" aria-label="返回">← 返回</button>
+      <div id="detail-header">
+        <div id="detail-title">会话详情</div>
+        <div id="detail-agent"></div>
+      </div>
+      <div id="detail-content">
+        <div class="empty-detail">暂无聊天记录</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -578,6 +776,12 @@
     const centerInfo = document.getElementById("center-info");
     const sessionList = document.getElementById("session-list");
     const settingsBtn = document.getElementById("settings-btn");
+
+    const detailView = document.getElementById("detail-view");
+    const detailBackBtn = document.getElementById("detail-back-btn");
+    const detailTitle = document.getElementById("detail-title");
+    const detailAgent = document.getElementById("detail-agent");
+    const detailContent = document.getElementById("detail-content");
 
     // 简单的 Markdown 转 HTML（安全转义 + 常用内联语法）
     function escapeHtml(text) {
@@ -687,6 +891,10 @@
     menuQuit.addEventListener("click", function (e) {
       e.stopPropagation();
       if (bridge) bridge.quitApp();
+    });
+
+    detailBackBtn.addEventListener("click", function () {
+      if (bridge) bridge.hideDetail();
     });
 
     function closeSettingsMenu() {
