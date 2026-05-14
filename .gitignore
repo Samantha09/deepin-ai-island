@@ -43,3 +43,6 @@ Thumbs.db
 config/user.yaml
 .worktrees/
 .claude/
+
+# Package build output
+pkg/
