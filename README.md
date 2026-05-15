@@ -9,11 +9,24 @@
 - **多行对话摘要** — 悬停会话卡片自动展开显示最近 3 行聊天记录摘要
 - **Markdown 渲染** — 支持在详情面板中渲染 Markdown 格式的消息内容
 - **状态点脉冲动画** — 运行中会话的状态指示器带有呼吸灯脉冲效果
-- **快捷审批** — 悬停会话卡片即可直接 Allow / Deny，无需进入详情页
+- **快捷审批** — 展开列表中直接显示拒绝 / 允许一次 / 允许所有按钮，无需进入详情页
+- **自动批准规则** — 点击会话卡片上的 "A" 按钮，同类权限请求将自动放行
 - **审批自动弹窗** — 新权限请求到来时自动展开列表（非详情页），5 秒后自动缩回
 - **智能排序** — 待审批会话置顶，运行中会话其次，已完成/空闲最后
-- **实时状态同步** — 准确反映 AI 空闲、处理中、等待审批等状态
+- **实时状态同步** — 准确反映 AI 空闲、处理中、等待审批、等待回答等状态
 - **会话名称** — 自动使用工作目录名称作为会话标识，便于区分多个会话
+- **终端跳转** — 点击会话卡片直接跳转到对应的终端窗口（tmux / 普通终端）
+- **插件系统** — 支持声音提示等插件扩展，可自定义审计、自动化规则
+
+## 界面预览
+
+### 紧凑模式（顶部胶囊）
+
+![紧凑模式](docs/screenshots/compact.png)
+
+### 展开模式（会话列表）
+
+![展开模式](docs/screenshots/expanded.png)
 
 ## 安装方式
 
@@ -60,64 +73,88 @@ python island_ui/main.py
 
 **前置条件：**
 - 已安装 Claude Code CLI
-- `~/.claude/settings.json` 中已配置 Hook 脚本路径
+- 已安装 AI Island Hook（首次使用需执行安装命令）
 
-### Mock 模式（UI 测试）
-
-无需启动 Claude Code，自动模拟各种事件序列，用于验证 UI 动画和交互：
+**安装 Hook：**
 
 ```bash
 source .venv/bin/activate
-python island_ui/main.py --source mock
+python claude_hooks/install.py install
 ```
 
-Mock 模式会自动模拟：会话创建、权限请求、用户输入、AI 回复、状态变化等场景。
+安装完成后，**必须重启 Claude Code** 才能生效（Claude Code 只在启动时读取一次 `settings.json`）。
+
+如需卸载 Hook：
+
+```bash
+python claude_hooks/install.py uninstall
+```
 
 ## 交互说明
 
 启动后，屏幕顶部中央将出现一个浮动胶囊：
 
 1. **悬停胶囊** — 自动展开会话列表，显示最近 3 行聊天记录摘要
-2. **点击会话卡片** — 打开详情面板查看完整 Markdown 渲染的聊天记录
-3. **权限审批** — 悬停会话卡片直接快捷审批（拒绝 / 允许），或在详情面板审批
-4. **审批自动弹窗** — 新权限请求到来时自动展开列表，5 秒后自动缩回
-5. **快捷键** — `Ctrl + Shift + I` 手动展开/收起，`Ctrl + Y` 允许首个权限，`Ctrl + N` 拒绝，`Esc` 收起
-
-## 快捷键
-
-| 快捷键 | 作用 |
-|--------|------|
-| `Ctrl + Shift + I` | 手动展开/收起 Island |
-| `Ctrl + Y` | 允许当前第一个待处理的权限请求 |
-| `Ctrl + N` | 拒绝当前第一个待处理的权限请求 |
-| `Esc` | 收起 Island（不处理事件） |
-| `Ctrl + D` | 注入测试事件（调试模式） |
-
+2. **点击会话卡片** — 直接跳转到该会话所在的终端窗口
+3. **点击"需要回答"** — 点击提问卡片上的"需要回答: ..."文本，进入详情面板进行回答
+4. **权限审批** — 展开列表中会话卡片底部直接显示快捷审批按钮（拒绝 / 允许一次 / 允许所有）
+5. **自动批准** — 点击会话卡片上的 "A" 按钮，当前会话的同类权限请求将自动放行
+6. **审批自动弹窗** — 新权限请求到来时自动展开列表，5 秒后自动缩回
 ## 项目结构
 
 ```
 deepin-ai-island/
 ├── island_ui/                 # PySide6 桌面应用核心
 │   ├── main.py                # 入口程序
-│   ├── island_window.py       # 主窗口：无边框、置顶、QWebEngine、setMask 动画
-│   ├── web/                   # 前端页面（HTML/CSS/JS）
-│   │   ├── island.html        # 主胶囊页面（CSS transition 动画）
-│   │   └── expanded.html      # 详情面板页面（Markdown 渲染）
-│   ├── claude_code_source.py  # Claude Code Hook 事件源（Unix Socket + 轮询）
-│   ├── state_machine.py       # IDLE/COMPACT/EXPANDED 状态机
-│   ├── event_source.py        # EventSource ABC + MockEventSource
-│   ├── events.py              # 事件数据模型
-│   └── session.py             # 会话模型（状态转换、事件聚合）
-├── island_daemon/             # 守护进程（预留）
-├── adapters/                  # Agent 适配器（预留）
+│   ├── island_window.py       # 主窗口：无边框、置顶、QWebChannel 桥接、setMask 动画
+│   ├── web/                   # 前端页面（HTML/CSS/JS，内嵌无外部服务器）
+│   │   ├── island.html        # 主胶囊页面（CSS transition 动画 + 会话列表）
+│   │   └── expanded.html      # 详情面板页面（Markdown 渲染 + 聊天记录）
+│   ├── claude_code_source.py  # Claude Code Hook 事件源（Unix Socket 服务器）
+│   ├── event_source.py        # EventSource ABC
+│   ├── state_machine.py       # IDLE/COMPACT/EXPANDED 三状态机
+│   ├── events.py              # 事件数据模型（Pydantic）
+│   ├── session.py             # 会话模型（状态转换、事件聚合）
+│   ├── card_factory.py        # 事件类型 → 卡片工厂
+│   ├── cards/                 # 事件卡片组件
+│   │   ├── base_card.py       # EventCard 基类
+│   │   ├── permission_card.py # 权限请求卡片
+│   │   ├── question_card.py   # 提问卡片
+│   │   └── session_list_item.py # 会话列表条目
+│   ├── theme.py               # 主题管理（深色/浅色）
+│   ├── animations.py          # 动画工具
+│   ├── config_manager.py      # YAML 配置管理
+│   ├── plugin.py              # 插件接口定义
+│   ├── plugin_loader.py       # 插件加载器
+│   └── plugins/               # 内置插件
+│       └── sound_plugin.py    # 声音提示插件
 ├── claude_hooks/              # Claude Code Hook 脚本
-│   └── ai_island_hook.py      # Hook 主脚本
+│   ├── ai_island_hook.py      # Hook 主脚本（stdin → Unix Socket）
+│   └── install.py             # Hook 安装/卸载工具
+├── island_daemon/             # 守护进程（预留，Phase 3）
+│   ├── ipc_server.py          # asyncio Unix Socket 服务器（空壳）
+│   └── session.py             # 守护进程会话管理
+├── adapters/                  # Agent 适配器（预留，Phase 3）
+│   └── base.py                # AgentAdapter 抽象基类
 ├── config/
-│   └── default.yaml           # 窗口位置、动画开关、超时时间
+│   └── default.yaml           # 窗口位置、动画开关、超时时间、音效配置
 ├── tests/                     # 单元测试
+│   ├── test_events.py
+│   ├── test_event_source.py
+│   ├── test_state_machine.py
+│   ├── test_session.py
+│   ├── test_theme.py
+│   ├── test_config.py
+│   ├── test_ask_user_question.py
+│   ├── test_sound_plugin.py
+│   └── test_clear_completed.py
+├── docs/                      # 文档与截图
+│   ├── screenshots/           # README 界面截图
+│   └── superpowers/           # 设计文档与规格
 ├── requirements.txt
 ├── build_deb.sh               # deb 打包脚本
 ├── build.py                   # PyInstaller 打包脚本
+├── deepin-ai-island.spec      # PyInstaller 规格文件
 └── README.md
 ```
 
@@ -127,6 +164,7 @@ deepin-ai-island/
 - **前端**: 原生 HTML5 / CSS3 / JavaScript（内嵌，无需外部服务器）
 - **动画**: Qt `setMask(QRegion)` + CSS `transition` + `cubic-bezier(0.22, 1, 0.36, 1)`
 - **运行时**: Python 3.12+
+- **数据模型**: Pydantic v2
 - **IPC**: Unix Domain Socket（JSON 协议）
 - **配置**: YAML
 
@@ -178,14 +216,17 @@ python tests/test_state_machine.py
 | 悬停不展开 | 检查 `enterEvent` / `mouseMoveEvent`；确认 `_expand_area.setVisible(True)` 被调用 |
 | 动画抖动 | 已使用 `setMask` 方案根治，如仍抖动请检查显卡驱动或禁用桌面特效 |
 
-## 第二阶段预览
+## 未来规划
 
-- Island Daemon 进程（asyncio Unix Socket）
-- Plan Review（Markdown 渲染增强）
-- 其他 Agent 支持（Codex、Gemini CLI）
+- **Island Daemon 进程** — 独立后台服务，支持多客户端事件聚合与持久化
+- **Plan Review** — Markdown 渲染增强，支持代码 diff 高亮
+- **多 Agent 支持** — 适配 Codex、Gemini CLI 等其他 AI Agent
+- **会话历史持久化** — SQLite 存储聊天记录，支持搜索与回顾
+- **系统托盘** — 最小化到托盘、开机自启、右键菜单
+- **图形配置界面** — 替代 YAML 编辑的 GUI 设置面板
 
 ## License
 
 本项目采用 [MIT](LICENSE) 许可证开源。
 
-Last checked: 2026-05-07
+Last updated: 2026-05-15
