@@ -329,20 +329,20 @@ class IslandWindow(QWidget):
 
         self.expanded_window = ExpandedWindow(self)
 
-        # 窗口始终固定为 large_size，通过 setMask 控制可见高度来实现展开/收起。
-        # 这样可以完全避免 QWebEngineView 的逐帧 resize，彻底消除抖动。
-        self.setFixedSize(*self.large_size)
+        # 收起状态下窗口实际 resize 到胶囊高度，避免不可见区域拦截鼠标事件；
+        # 展开前再恢复 large_size，动画过程仍用 mask 避免逐帧 resize 抖动。
+        self.setFixedSize(self.large_size[0], self.small_size[1])
         self.web_view.setFixedSize(*self.large_size)
         initial_rect = self._target_rect(*self.large_size)
         self.move(initial_rect.x(), initial_rect.y())
         self._mask_height = self.small_size[1]
-        self.setMask(QRegion(0, 0, self.large_size[0], self._mask_height))
 
         # Mask 高度动画（展开/收起）
         self._mask_anim = QVariantAnimation(self)
         self._mask_anim.setDuration(400)
         self._mask_anim.setEasingCurve(QEasingCurve.InOutCubic)
         self._mask_anim.valueChanged.connect(self._on_mask_value_changed)
+        self._shrink_connected = False
 
         self._anim_target: Optional[tuple[int, int]] = None
 
@@ -700,6 +700,17 @@ class IslandWindow(QWidget):
         self.setMask(QRegion(0, 0, self.large_size[0], height))
 
     def set_mask_height(self, height: int) -> None:
+        if height == self._mask_height:
+            return
+        expanding = height > self._mask_height
+        # 断开之前的 shrink 连接，避免误触发
+        if self._shrink_connected:
+            self._mask_anim.finished.disconnect(self._shrink_window)
+            self._shrink_connected = False
+        if expanding and self.height() != self.large_size[1]:
+            # 展开前先恢复 large_size，同时用 mask 保持当前可见高度，避免闪屏
+            self.setMask(QRegion(0, 0, self.large_size[0], self._mask_height))
+            self.setFixedSize(*self.large_size)
         if self._mask_anim.state() == QVariantAnimation.State.Running:
             self._mask_anim.stop()
         self._mask_anim.setStartValue(self._mask_height)
@@ -707,6 +718,15 @@ class IslandWindow(QWidget):
         self._mask_anim.start()
         self._mask_height = height
         self.schedule_cleanup()
+        if not expanding:
+            self._mask_anim.finished.connect(self._shrink_window)
+            self._shrink_connected = True
+
+    def _shrink_window(self) -> None:
+        """收起动画完成后将窗口缩回胶囊高度，避免不可见区域拦截鼠标。"""
+        if self._mask_height == self.small_size[1]:
+            self.setFixedSize(self.large_size[0], self.small_size[1])
+            self.clearMask()
 
     def animate_to(self, width: int, height: int) -> None:
         """兼容旧接口，实际通过 mask 高度控制展开/收起。"""
